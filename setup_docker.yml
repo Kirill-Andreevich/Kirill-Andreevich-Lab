@@ -1,0 +1,24 @@
+---
+- name: Install Docker on EndeavourOS
+  hosts: compute
+  become: yes
+  tasks:
+    - name: Update Pacman cache and install Docker
+      pacman:
+        name: 
+          - docker
+          - docker-compose
+        update_cache: yes
+        state: present
+
+    - name: Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add user km to docker group
+      user:
+        name: km
+        groups: docker
+        append: yes
