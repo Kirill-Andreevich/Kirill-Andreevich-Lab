@@ -1,0 +1,19 @@
+---
+- name: Deploy Node Exporter
+  hosts: nodes
+  become: yes
+  tasks:
+    - name: Deploy Node Exporter Container
+      community.docker.docker_container:
+        name: node-exporter
+        image: prom/node-exporter:latest
+        state: started
+        restart_policy: unless-stopped
+        network_mode: host
+        pid_mode: host
+        volumes:
+          - "/:/host:ro,rslave"
+        command:
+          - '--path.rootfs=/host'
+          - '--collector.zfs'
+          - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+)($$|/)'

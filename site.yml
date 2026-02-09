@@ -1,0 +1,4 @@
+---
+- import_playbook: setup_docker.yml
+- import_playbook: setup_node_exporter.yml
+- import_playbook: setup_gpu_monitoring.yml
