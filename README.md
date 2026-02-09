@@ -11,9 +11,10 @@ Automated Hybrid HomeLab built on cutting-edge **Zen 5** architecture. Managed v
 ### Features
 - [x] **Infrastructure as Code:** Automated node provisioning via Ansible.
 - [x] **Containerization:** Optimized Docker engine deployment on Arch-based systems.
-- [x] **Security:** SSH key-based management and isolated Python environments (venv).
+- [x] **GPU Monitoring:** Real-time metrics for **RTX 4090** via nvidia-gpu-exporter (systemd service).
+- [x] **Network Security:** Automated firewall management (firewalld/ufw) via Ansible.
 
 ### How to run
 1. Clone this repo.
-2. Create python venv and install requirements.
-3. Run: `python -m ansible.cli.playbook -i inventory.ini setup_docker.yml -K`
+2. Activate python venv: `source venv/bin/activate`
+3. Run provisioning: `python -m ansible.cli.playbook -i inventory.ini setup_gpu_monitoring.yml -K`
