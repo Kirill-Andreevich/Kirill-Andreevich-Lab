@@ -1,9 +1,9 @@
 ---
 - name: Install NVIDIA GPU Exporter as a System Service
-  hosts: compute
+  hosts: nvidia_gpu
   become: yes
   vars:
-    version: "1.3.1" # Актуальная версия
+    version: "1.4.1" # Актуальная версия
   tasks:
     - name: Download nvidia_gpu_exporter binary
       get_url:

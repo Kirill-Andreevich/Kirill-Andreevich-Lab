@@ -1,0 +1,19 @@
+---
+- name: Remove NVIDIA junk from AMD system
+  hosts: manjaro
+  become: yes
+  tasks:
+    - name: Stop and disable NVIDIA exporter
+      systemd:
+        name: nvidia_gpu_exporter
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Remove binary and service file
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/bin/nvidia_gpu_exporter
+        - /etc/systemd/system/nvidia_gpu_exporter.service

@@ -1,0 +1,42 @@
+---
+- name: Install Official AMD SMI via AUR (Manjaro Way)
+  hosts: amd_gpu
+  become: yes
+  tasks:
+    - name: Install dependencies
+      pacman:
+        name: [base-devel, git, go]
+        state: present
+
+    - name: Install amdsmi and exporter from AUR
+      # Используем pamac, он сам разрулит конфликты структур в коде
+      become: yes
+      become_user: km
+      command: pamac build --no-confirm amd-smi-exporter-bin
+      environment:
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/1000/bus"       
+      register: build_result
+
+    - name: Create Systemd service
+      copy:
+        dest: /etc/systemd/system/amd-smi-exporter.service
+        content: |
+          [Unit]
+          Description=Official AMD SMI Exporter
+          After=network.target
+
+          [Service]
+          Type=simple
+          # В пакете из AUR бинарник обычно лежит в /usr/bin/amd_smi_exporter
+          ExecStart=/usr/bin/amd_smi_exporter --address 0.0.0.0:9101
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Start and enable service
+      systemd:
+        name: amd-smi-exporter
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
