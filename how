@@ -1,0 +1,41 @@
+[33mcommit 075d8a8a5fb6bd2736e1cd29d66bfa8796fca3fa[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Tue Feb 10 21:32:27 2026 +0300
+
+    refactor: переход на модульную структуру (ansible/terraform). Обновление README и запуск фазы 30-VM Challenge
+
+[33mcommit 363ca536d5ba2ef7931c21f09807871708f3c1f1[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Tue Feb 10 12:07:12 2026 +0300
+
+    docs: update README with infrastructure architecture and roadmap
+
+[33mcommit fc52a1e85bbc4b5ab511b24bf8ebdfac2e973f32[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Mon Feb 9 13:10:02 2026 +0300
+
+    feat: infrastructure as code for Ryzen 9000 series and ZFS monitoring
+
+[33mcommit bf3cef3215499c12e0e060708392b1ff999801d7[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Mon Feb 9 11:46:47 2026 +0300
+
+    docs: update features list with GPU monitoring and Zen 5 specs
+
+[33mcommit e4faa9a026128c77e346daee0833f0c1da43fe61[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Mon Feb 9 11:43:25 2026 +0300
+
+    feat: stable nvidia gpu monitoring with systemd and firewalld fixes
+
+[33mcommit 37a802c7b0330688e3fbce626d8bfdff5132fe51[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Mon Feb 9 10:57:38 2026 +0300
+
+    docs: add professional lab overview and hardware specs
+
+[33mcommit 1a7ec51315c72a62a2c78739a5b802ea6095e337[m
+Author: Kirill-Andreevich <stay765@gmail.com>
+Date:   Mon Feb 9 10:45:40 2026 +0300
+
+    feat: initial infrastructure as code setup for Zen 5 cluster

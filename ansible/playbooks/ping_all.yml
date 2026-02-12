@@ -1,0 +1,37 @@
+---
+- name: Оживляем зоопарк машин из Terraform и локальной сети
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: 1. Проверка связи (Ping)
+      ansible.builtin.ping:
+
+    - name: 2. Обновляем софт на Debian/Ubuntu (Terraform-машины)
+      ansible.builtin.apt:
+        name: [curl, htop, qemu-guest-agent]
+        update_cache: yes
+        state: present
+      # Выполнится только если ОС из семейства Debian
+      when: ansible_os_family == "Debian"
+
+    - name: 3. Обновляем софт на Arch/Manjaro/Endeavour
+      ansible.builtin.pacman:
+        name: [curl, htop, qemu-guest-agent]
+        update_cache: yes
+        state: present
+      # Выполнится только если ОС из семейства Archlinux
+      when: ansible_os_family == "Archlinux"
+
+    - name: 4. Запускаем QEMU Guest Agent (везде)
+      ansible.builtin.systemd:
+        name: qemu-guest-agent
+        state: started
+        enabled: yes
+      # Пропускаем на TrueNAS, так как там свои правила
+      when: ansible_distribution != "TrueNAS"
+
+    - name: 5. Финальный отчет
+      ansible.builtin.debug:
+        msg: "Система: {{ ansible_os_family }}, Хост: {{ ansible_hostname }}, IP: {{ ansible_default_ipv4.address }}"

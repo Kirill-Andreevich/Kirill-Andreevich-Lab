@@ -1,24 +1,30 @@
 ---
-- name: Install Docker on EndeavourOS
-  hosts: compute
+- name: "Install Docker (Universal: Arch & Ubuntu)"
+  hosts: all
   become: yes
   tasks:
-    - name: Update Pacman cache and install Docker
-      pacman:
-        name: 
-          - docker
-          - docker-compose
+    - name: "1. Install Docker on Arch/Endeavour (Pacman)"
+      ansible.builtin.pacman:
+        name: [docker, docker-compose]
         update_cache: yes
         state: present
+      when: ansible_os_family == "Archlinux"
 
-    - name: Enable and start Docker service
-      systemd:
+    - name: "2. Install Docker on Ubuntu/Debian (Apt)"
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2]
+        update_cache: yes
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: "3. Enable and start Docker service"
+      ansible.builtin.systemd:
         name: docker
         enabled: yes
         state: started
 
-    - name: Add user km to docker group
-      user:
-        name: km
+    - name: "4. Add user {{ ansible_user }} to docker group"
+      ansible.builtin.user:
+        name: "{{ ansible_user }}"
         groups: docker
         append: yes

@@ -1,5 +1,22 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Terraform
 .terraform/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
-venv/
+
+# Ansible
+*.log
+ansible/inventory/hosts.ini
+# Если используешь динамический инвентарь в generated/
+ansible/generated/*
+*.qcow2
+*.iso
+*.img
+.terraform/
+terraform.tfstate*
+*.qcow2
