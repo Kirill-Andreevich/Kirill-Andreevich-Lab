@@ -1,0 +1,4 @@
+---
+- name: "AI Stack Deployment"
+  debug:
+    msg: "Deploying Ollama and DeepSeek-R1 on GPU..."

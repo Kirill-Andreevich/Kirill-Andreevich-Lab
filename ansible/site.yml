@@ -1,0 +1,7 @@
+---
+- name: "Infrastructure Deployment"
+  hosts: all
+  become: true
+  roles:
+    - common
+    - ai_stack

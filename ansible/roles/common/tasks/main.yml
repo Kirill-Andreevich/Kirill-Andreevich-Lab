@@ -1,0 +1,4 @@
+---
+- name: "Common setup for all nodes"
+  debug:
+    msg: "Installing base packages and docker..."
