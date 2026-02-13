@@ -74,3 +74,22 @@ cd ../ansible && ansible-playbook -i inventory/hosts.ini playbooks/site.yml
 
 ---
 **Status:** 📓 *Phase 1 Complete. Scaling in Progress...*
+
+---
+
+## 🧭 Roadmap: Evolution to Private Cloud
+
+### Phase 2: Orchestration & Advanced Observability (Current Goal)
+- [ ] **Kubernetes Cluster (K3s)**: Развертывание легковесного K8s поверх 10 узлов Ubuntu через Ansible.
+- [ ] **Log Aggregation (Loki + Promtail)**: Переход от метрик к полноценному анализу логов (PLG Stack).
+- [ ] **Self-hosted CI/CD (GitHub Actions Runner)**: Настройка локального воркера для автоматического тестирования плейбуков при пуше.
+- [ ] **Dynamic DNS & Consul**: Внедрение Service Discovery для автоматической регистрации новых сервисов.
+
+### Phase 3: Infrastructure Mesh & Security
+- [ ] **Service Mesh (Istio/Linkerd)**: Управление трафиком между микросервисами и визуализация связей.
+- [ ] **Secrets Management (HashiCorp Vault)**: Вынос всех паролей и SSH-ключей из конфигов в защищенное хранилище.
+- [ ] **GitOps Workflow (ArgoCD)**: Переход к модели, где состояние кластера Kubernetes полностью синхронизируется с Git.
+- [ ] **Hybrid Networking (Wireguard Mesh)**: Объединение физических нод и облачных ресурсов в единую защищенную L2/L3 сеть.
+
+---
+**Status:** ⚙️ *Phase 1 (IaC) - Stable | Phase 2 (K8s) - Researching...*
