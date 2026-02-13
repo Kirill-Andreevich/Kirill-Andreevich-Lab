@@ -1,0 +1,182 @@
+---
+- name: 🚀 Deploy Optimized Qwen 2.5 Coder with Web Search & Bot
+  hosts: nvidia_gpu
+  become: true
+  vars:
+    model_name: "qwen2.5-coder:32b"
+    fast_model_name: "qwen-fast"
+    docker_network_name: ai_network
+    ollama_container_name: ollama
+    open_webui_container_name: open-webui
+    searxng_container_name: searxng
+    chat_bot_container_name: qwen-chat-bot
+    
+    ollama_image: ollama/ollama:latest
+    open_webui_image: ghcr.io/open-webui/open-webui:main
+    searxng_image: searxng/searxng:latest
+    
+    ollama_storage_volume: ollama_storage
+    open_webui_data_volume: open-webui-data
+    searxng_config_dir: "/opt/searxng"
+
+  tasks:
+    - name: 🛠 Prepare Environment
+      block:
+        - name: 📦 Install Python Docker SDK & NVIDIA Toolkit (Arch)
+          community.general.pacman:
+            name: [python-docker, nvidia-container-toolkit, python-requests]
+            state: present
+
+        - name: 🔧 Configure NVIDIA Runtime for Docker
+          command: nvidia-ctk runtime configure --runtime=docker
+          changed_when: true
+
+        - name: 🔄 Restart Docker Service
+          systemd:
+            name: docker
+            state: restarted
+            enabled: true
+
+        - name: 🌐 Create Docker Network
+          community.docker.docker_network:
+            name: "{{ docker_network_name }}"
+            state: present
+
+        - name: 📁 Create SearXNG Config Directory
+          file:
+            path: "{{ searxng_config_dir }}"
+            state: directory
+            mode: '0755'
+
+    - name: 📝 Generate SearXNG Settings
+      copy:
+        dest: "{{ searxng_config_dir }}/settings.yml"
+        content: |
+          use_default_settings: true
+          server:
+            secret_key: "ai_search_secret"
+            limiter: false
+            image_proxy: true
+          search:
+            formats:
+              - html
+              - json
+
+    - name: 🐳 Run Ollama (RTX 4090)
+      community.docker.docker_container:
+        name: "{{ ollama_container_name }}"
+        image: "{{ ollama_image }}"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ docker_network_name }}"
+        published_ports:
+          - "11434:11434"
+        volumes:
+          - "{{ ollama_storage_volume }}:/root/.ollama"
+        device_requests:
+          - driver: nvidia
+            count: -1
+            capabilities: [["gpu"]]
+
+    - name: 🔍 Run SearXNG
+      community.docker.docker_container:
+        name: "{{ searxng_container_name }}"
+        image: "{{ searxng_image }}"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ docker_network_name }}"
+        env:
+          SEARXNG_PORT: "8080"
+        volumes:
+          - "{{ searxng_config_dir }}/settings.yml:/etc/searxng/settings.yml:ro"
+
+    - name: 🖥 Run Open WebUI
+      community.docker.docker_container:
+        name: "{{ open_webui_container_name }}"
+        image: "{{ open_webui_image }}"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ docker_network_name }}"
+        published_ports:
+          - "3000:8080"
+        volumes:
+          - "{{ open_webui_data_volume }}:/app/backend/data"
+        env:
+          OLLAMA_BASE_URL: "http://{{ ollama_container_name }}:11434"
+          WEBUI_AUTH: "False"
+          ENABLE_RAG_WEB_SEARCH: "True"
+          RAG_WEB_SEARCH_ENGINE: "searxng"
+          SEARXNG_QUERY_URL: "http://{{ searxng_container_name }}:8080/search?q=<query>"
+
+    - name: 📝 Create Chat Bot Python Script
+      copy:
+        dest: "/tmp/qwen_app.py"
+        content: |
+          import streamlit as st
+          import requests
+          import json
+          st.set_page_config(page_title="Qwen 2.5 Coder 4090", layout="wide")
+          st.title("🚀 Qwen 2.5 Coder (32B) on 4090")
+          if "messages" not in st.session_state:
+              st.session_state.messages = []
+          for message in st.session_state.messages:
+              with st.chat_message(message["role"]):
+                  st.markdown(message["content"])
+          if prompt := st.chat_input("Напиши код..."):
+              st.session_state.messages.append({"role": "user", "content": prompt})
+              with st.chat_message("user"):
+                  st.markdown(prompt)
+              with st.chat_message("assistant"):
+                  response_placeholder = st.empty()
+                  full_response = ""
+                  res = requests.post(
+                      "http://{{ ollama_container_name }}:11434/api/generate",
+                      json={"model": "{{ fast_model_name }}", "prompt": prompt, "stream": True},
+                      stream=True
+                  )
+                  for line in res.iter_lines():
+                      if line:
+                          chunk = json.loads(line.decode('utf-8'))
+                          full_response += chunk.get("response", "")
+                          response_placeholder.markdown(full_response + "▌")
+                  response_placeholder.markdown(full_response)
+              st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+    - name: 🤖 Run Streamlit Chat Bot Container
+      community.docker.docker_container:
+        name: "{{ chat_bot_container_name }}"
+        image: "python:3.11-slim"
+        state: started
+        restart_policy: always
+        networks:
+          - name: "{{ docker_network_name }}"
+        published_ports:
+          - "5000:8501"
+        volumes:
+          - "/tmp/qwen_app.py:/app/app.py"
+        entrypoint: >
+          sh -c "pip install streamlit requests && streamlit run /app/app.py --server.address 0.0.0.0"
+
+    - name: 🧠 Ensure Model is Pulled
+      command: "docker exec {{ ollama_container_name }} ollama pull {{ model_name }}"
+      async: 1800
+      poll: 30
+
+    - name: ⚙ Create Fast Model (Optimized)
+      shell: |
+        docker exec {{ ollama_container_name }} sh -c "echo 'FROM {{ model_name }}\nPARAMETER num_ctx 4096\nPARAMETER temperature 0.3' > /tmp/Modelfile"
+        docker exec {{ ollama_container_name }} ollama create {{ fast_model_name }} -f /tmp/Modelfile
+      changed_when: true
+
+    - name: ✨ Final Report
+      debug:
+        msg: 
+          - "========================================================="
+          - "  AI STACK READY!"
+          - "  Open WebUI: http://{{ ansible_host }}:3000"
+          - "  Custom Chat Bot: http://{{ ansible_host }}:5000"
+          - "  Model: {{ fast_model_name }} (32B running on 4090)"
+          - "========================================================="
