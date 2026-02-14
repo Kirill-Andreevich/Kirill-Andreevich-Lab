@@ -25,6 +25,22 @@ users:
     shell: /bin/bash
     ssh-authorized-keys:
       - ${file("/home/km/.ssh/id_ed25519.pub")}
+
+# Установка агента для отображения IP в Virt-Manager
+packages:
+  - qemu-guest-agent
+
+runcmd:
+  - [ systemctl, enable, --now, qemu-guest-agent ]
+EOT
+
+  # Конфиг сети для гарантированного DHCP в Ubuntu 24.04
+  network_config = <<EOT
+network:
+  version: 2
+  ethernets:
+    ens3:
+      dhcp4: true
 EOT
 }
 
@@ -43,6 +59,7 @@ resource "libvirt_volume" "os_disk_compute" {
   pool           = "default"
   base_volume_id = libvirt_volume.base_image.id 
   format         = "qcow2"
+  size           = 21474836480 # 20GB чтобы не висло
 }
 
 resource "libvirt_domain" "vm_compute" {
@@ -52,16 +69,17 @@ resource "libvirt_domain" "vm_compute" {
   vcpu     = each.value.cpu
   memory   = each.value.ram
   
+  # Включаем канал связи для агента
+  qemu_agent = true
+
   cloudinit = libvirt_cloudinit_disk.commoninit.id
 
   cpu { mode = "host-passthrough" }
   
   disk { volume_id = libvirt_volume.os_disk_compute[each.key].id }
   
-  # Пробуем максимально простой проброс сети
   network_interface {
-    # Это аналог твоего XML <interface type='bridge'> с прямой привязкой
-    macvtap = "enp12s0"
+    bridge         = "br0"
     wait_for_lease = true
   }
   
@@ -76,7 +94,7 @@ resource "local_file" "ansible_inventory" {
   content  = <<EOT
 [compute_vms]
 %{ for name, vm in libvirt_domain.vm_compute ~}
-${name} ansible_host=${vm.network_interface.0.addresses.0}
+${name} ansible_host=${join("", vm.network_interface.0.addresses)}
 %{ endfor ~}
 
 [all:vars]
