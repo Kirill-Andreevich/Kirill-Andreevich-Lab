@@ -1,0 +1,24 @@
+---
+- name: Install Kubernetes Components
+  hosts: k8s_master, k8s_workers
+  become: true
+  tasks:
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Kubernetes signing key
+      shell: |
+        curl -fsSL https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v1.31/deb/Release.key | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add repository (Final Corrected)
+      shell: |
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v1.31/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+
+    - name: Force Update and Install
+      shell: |
+        apt-get update -y
+        apt-get install -y kubelet kubeadm kubectl
+        apt-mark hold kubelet kubeadm kubectl

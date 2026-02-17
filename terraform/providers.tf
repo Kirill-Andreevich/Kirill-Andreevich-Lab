@@ -1,11 +1,23 @@
-# Узел Compute (9950X3D)
-provider "libvirt" {
-  alias = "compute"
-  uri   = "qemu+ssh://km@${var.host_ips["compute"]}/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519"
+terraform {
+  required_providers {
+    libvirt = { 
+      source  = "dmacvicar/libvirt"
+      version = "0.7.1" 
+    }
+    local = { 
+      source = "hashicorp/local" 
+    }
+  }
 }
 
-# Узел Workstation (9800X3D)
+# Хост 9950X (Compute)
+provider "libvirt" {
+  alias = "compute"
+  uri   = "qemu+ssh://km@192.168.1.22/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
+}
+
+# Хост 9800X (Workstation)
 provider "libvirt" {
   alias = "workstation"
-  uri   = "qemu+ssh://km@${var.host_ips["workstation"]}/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519"
+  uri   = "qemu+ssh://km@192.168.1.234/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
 }

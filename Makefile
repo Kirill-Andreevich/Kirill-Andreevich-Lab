@@ -1,34 +1,29 @@
-# Variables
+# Переменные путей
 TF_DIR = terraform
 ANSIBLE_DIR = ansible
+INVENTORY = $(ANSIBLE_DIR)/inventory/generated_hosts.ini
+SITE_YAML = $(ANSIBLE_DIR)/site.yml
 
-.PHONY: all deploy destroy clean ping ai-up
+# Отключаем проверку SSH ключей, так как виртуалки новые
+export ANSIBLE_HOST_KEY_CHECKING=False
 
-# Main command
-all: deploy ai-up
+.PHONY: all up down provision ping help
 
-# 1. Infrastructure Layer (Terraform)
-deploy:
-	@echo "Deploying virtual machines..."
-	cd $(TF_DIR) && terraform apply -auto-approve
+help: ## Показать справку
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-# 2. Connection Check
-ping:
-	@echo "Checking connectivity..."
-	cd $(ANSIBLE_DIR) && ansible all -i inventory/generated_hosts.ini -m ping
+up: ## Создать инфраструктуру через Terraform
+	cd $(TF_DIR) && terraform init && terraform apply -auto-approve
 
-# 3. Application Layer (Ansible)
-ai-up:
-	@echo "Deploying DeepSeek-R1..."
-	cd $(ANSIBLE_DIR) && ansible-playbook -i inventory/generated_hosts.ini site.yml
+provision: ## Настроить софт (K8s v1.31 + Docker) через Ansible
+	@echo "Ожидание готовности SSH..."
+	sleep 20
+	ansible-playbook -i $(INVENTORY) $(SITE_YAML)
 
-# 4. Destroy Everything
-destroy:
-	@echo "Destroying infrastructure..."
+all: up provision ## Полный цикл: развернуть и настроить
+
+down: ## Удалить все виртуалки через Terraform
 	cd $(TF_DIR) && terraform destroy -auto-approve
 
-# 5. Clean up
-clean:
-	rm -rf $(TF_DIR)/.terraform
-	rm -f $(TF_DIR)/*.tfstate*
-	rm -f $(ANSIBLE_DIR)/inventory/generated_hosts.ini
+ping: ## Проверить связь со всеми нодами
+	ansible all -i $(INVENTORY) -m ping

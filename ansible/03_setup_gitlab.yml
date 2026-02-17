@@ -1,0 +1,16 @@
+---
+- name: Install Docker for GitLab
+  hosts: gitlab
+  become: true
+  tasks:
+    - name: Install Docker
+      apt:
+        name: [docker.io, docker-compose-v2]
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker is started
+      service:
+        name: docker
+        state: started
+        enabled: yes

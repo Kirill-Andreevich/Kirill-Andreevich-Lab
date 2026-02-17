@@ -1,0 +1,47 @@
+---
+- name: Prepare OS for Kubernetes and GitLab
+  hosts: all
+  become: true
+  tasks:
+    - name: Kill broken kubernetes repos
+      file:
+        path: "/etc/apt/sources.list.d/kubernetes.list"
+        state: absent
+
+    - name: Force apt cleanup and update
+      shell: "apt-get clean && apt-get update"
+      ignore_errors: true
+
+    - name: Disable SWAP
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+    - name: Load kernel modules for K8s
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop: [overlay, br_netfilter]
+
+    - name: Set sysctl networking parameters
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+      loop:
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { key: 'net.ipv4.ip_forward', value: '1' }
+
+    - name: Install Containerd and dependencies
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, gpg, containerd, nfs-common, open-iscsi]
+        update_cache: yes
+        state: present
+
+    - name: Configure Containerd for SystemdCgroup
+      shell: |
+        mkdir -p /etc/containerd
+        containerd config default > /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+        systemctl restart containerd
