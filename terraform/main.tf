@@ -34,13 +34,15 @@ runcmd:
 EOF
 }
 
-# --- CLOUD-INIT ДЛЯ COMPUTE ---
+# --- CLOUD-INIT ДЛЯ COMPUTE (уникальный для каждой ноды) ---
 resource "libvirt_cloudinit_disk" "init_compute" {
+  count     = var.worker_count
   provider  = libvirt.compute
-  name      = "init-comp.iso"
+  name      = "init-comp-${count.index}.iso"
   pool      = "default"
   user_data = <<EOF
 #cloud-config
+hostname: k8s-worker-${count.index}
 users:
   - name: km
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -62,7 +64,7 @@ runcmd:
 EOF
 }
 
-# --- WORKSTATION (9800X) ---
+# --- WORKSTATION (9800X): MASTER ---
 resource "libvirt_volume" "master_disk" {
   provider       = libvirt.workstation
   name           = "k8s-master-os.qcow2"
@@ -90,6 +92,7 @@ resource "libvirt_domain" "k8s_master" {
   }
 }
 
+# --- WORKSTATION (9800X): GITLAB ---
 resource "libvirt_volume" "gitlab_disk" {
   provider       = libvirt.workstation
   name           = "gitlab-os.qcow2"
@@ -117,7 +120,7 @@ resource "libvirt_domain" "gitlab" {
   }
 }
 
-# --- COMPUTE (9950X) ---
+# --- COMPUTE (9950X): WORKERS ---
 resource "libvirt_volume" "worker_disk" {
   count          = var.worker_count
   provider       = libvirt.compute
@@ -133,7 +136,7 @@ resource "libvirt_domain" "k8s_worker" {
   vcpu       = 6
   memory     = 12288
   qemu_agent = true
-  cloudinit  = libvirt_cloudinit_disk.init_compute.id
+  cloudinit  = libvirt_cloudinit_disk.init_compute[count.index].id
   cpu { mode = "host-passthrough" }
   disk { volume_id = libvirt_volume.worker_disk[count.index].id }
   network_interface { 
@@ -146,3 +149,4 @@ resource "libvirt_domain" "k8s_worker" {
     target_type = "serial"
   }
 }
+
