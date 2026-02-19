@@ -1,0 +1,46 @@
+---
+- name: Dynamic iSCSI Setup
+  hosts: k8s_workers
+  become: true
+  vars:
+    truenas_ip: "192.168.1.176"
+
+  tasks:
+    - name: Discovery targets
+      # Берем только уникальные IQN из вывода discovery
+      shell: "iscsiadm -m discovery -t sendtargets -p {{ truenas_ip }} | awk '{print $2}' | sort -u"
+      register: discovered_iqn
+
+    - name: Login to targets
+      shell: "iscsiadm -m node -T {{ item }} -p {{ truenas_ip }} --login"
+      loop: "{{ discovered_iqn.stdout_lines }}"
+      register: login_res
+      failed_when: "login_res.rc != 0 and 'already logged in' not in login_res.stderr"
+
+    - name: Wait for disk to appear in OS
+      pause:
+        seconds: 5
+
+    - name: Find 100G iSCSI device
+      # Ищем диск размером 100G (107374182400 байт)
+      shell: "lsblk -bno NAME,SIZE | grep 107374182400 | awk '{print \"/dev/\"$1}' | head -n1"
+      register: iscsi_dev
+
+    - name: Setup Filesystem and Mount
+      block:
+        - name: Create ext4
+          filesystem:
+            fstype: ext4
+            dev: "{{ iscsi_dev.stdout }}"
+        - name: Create mount dir
+          file:
+            path: /mnt/k8s-shared
+            state: directory
+        - name: Mount it
+          mount:
+            path: /mnt/k8s-shared
+            src: "{{ iscsi_dev.stdout }}"
+            fstype: ext4
+            opts: "_netdev,noatime"
+            state: mounted
+      when: iscsi_dev.stdout != ""

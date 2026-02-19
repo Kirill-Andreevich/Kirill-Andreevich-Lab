@@ -1,0 +1,25 @@
+---
+- name: Post-init Master Setup
+  hosts: k8s_master
+  become: true
+  tasks:
+    - name: Setup kubeconfig for km user
+      file:
+        path: "/home/km/.kube"
+        state: directory
+        owner: km
+        group: km
+
+    - name: Copy admin.conf
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/km/.kube/config
+        remote_src: yes
+        owner: km
+        group: km
+
+    - name: Fetch kubeconfig to Manjaro
+      fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: ~/.kube/config
+        flat: yes

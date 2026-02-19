@@ -1,0 +1,21 @@
+---
+- name: Prepare Workers for Democratic CSI
+  hosts: k8s_workers
+  become: true
+  tasks:
+    - name: Cleanup manual iscsi
+      shell: "iscsiadm -m node -u || true && iscsiadm -m node -o delete || true"
+      ignore_errors: true
+
+    - name: Install iSCSI and Multipath tools
+      apt:
+        name: [open-iscsi, lsscsi, sg3-utils, multipath-tools]
+        state: present
+        update_cache: yes
+
+    - name: Enable services
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: [iscsid, multipathd]

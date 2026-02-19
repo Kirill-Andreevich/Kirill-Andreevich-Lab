@@ -1,0 +1,32 @@
+csiDriver:
+  name: "org.democratic-csi.iscsi"
+
+driver:
+  config:
+    driver: freenas-api-iscsi
+    httpConnection:
+      protocol: http
+      host: 192.168.1.176
+      port: 80
+      apiKey: "ТВОЙ_API_KEY_ОТ_ЮЗЕРА_KM"
+      allowInsecure: true
+    zfs:
+      datasetParentName: NVME/k8s-vols
+      detachedSnapshotsDatasetParentName: NVME/k8s-vols/snaps
+    iscsi:
+      targetPortal: "192.168.1.176:3260"
+      targetGroups:
+        - targetPortalGroupTag: 1
+          targetInitiatorGroupTag: 1
+          targetAuthMethod: None
+      extentInsecureTpc: true
+      extentRpm: "SSD"
+
+storageClasses:
+- name: truenas-iscsi
+  defaultClass: true
+  reclaimPolicy: Delete
+  volumeBindingMode: Immediate
+  allowVolumeExpansion: true
+  parameters:
+    fsType: ext4
