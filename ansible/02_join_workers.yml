@@ -3,10 +3,11 @@
   hosts: k8s_workers
   become: true
   tasks:
-    - name: Join command
-      shell: |
-        kubeadm join 192.168.1.136:6443 --token pyhjl3.rbya08mbac7r5wba         --discovery-token-ca-cert-hash sha256:4414b17d65f6b0cc482c97ffad42dceffee20b2bbc9b59f58b472fa1fc4bb1f2
+    - name: Read join command from local file
+      set_fact:
+        join_cmd: "{{ lookup('file', './join_command.txt') }}"
+
+    - name: Execute Join
+      shell: "{{ join_cmd }} {{ inventory_hostname }}"
       register: join_out
-      failed_when: 
-        - join_out.rc != 0 
-        - "'already exists' not in join_out.stderr"
+      failed_when: "join_out.rc != 0 and 'already exists' not in join_out.stderr"
