@@ -33,9 +33,9 @@
         - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
         - { key: 'net.ipv4.ip_forward', value: '1' }
 
-    - name: Install Containerd and dependencies
+    - name: Install Containerd and K8s dependencies
       apt:
-        name: [apt-transport-https, ca-certificates, curl, gpg, containerd, nfs-common, open-iscsi]
+        name: [apt-transport-https, ca-certificates, curl, gpg, containerd, nfs-common, open-iscsi, conntrack, socat, ebtables]
         update_cache: yes
         state: present
 

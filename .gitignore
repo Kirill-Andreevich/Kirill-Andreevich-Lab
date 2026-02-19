@@ -20,3 +20,9 @@ ansible/generated/*
 *.qcow2
 *.iso
 *.img
+*.tfvars
+join_command.txt
+.kube/config
+join_command.txt
+*.tfvars
+generated_hosts.ini
