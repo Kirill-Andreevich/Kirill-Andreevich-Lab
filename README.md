@@ -8,9 +8,11 @@
 ## 💻 Hardware Topology (The Beast)
 *Инфраструктура распределена между тремя узлами Zen 5 в общей L2-сети.*
 
-*   **🚀 Compute Node (Main):** Ryzen 9 9950X (32 threads) | RTX 4090 | 64GB DDR5.
-*   **🖥 Workstation (Control):** Ryzen 7 9800X | RX 9070 XT | 32GB DDR5.
-*   **💾 Storage Node (Data):** Ryzen 7 9700X | TrueNAS SCALE | RAID-Z1.
+*   **🚀 Compute Node (Main):** Ryzen 9 9950X3D | RTX 4090 | 32GB DDR5.
+*   **🖥 Workstation (Control):** Ryzen 7 9800X3D | RX 9070 XT | 32GB DDR5.
+*   **💾 Storage Node (Data):** Ryzen 7 9700X | TrueNAS SCALE | 32GB DDR5.
+    *   **⚡ NVME Pool (RAID 10 / Striped Mirror):** High-performance tier для iSCSI и K8s PV.
+    *   **📦 RAID5 Pool (RAID-Z1):** 4x HDD для медиа-контента и архивов.
 
 ## 🛠 Tech Stack
 *   **Infrastructure:** Terraform (Libvirt / QEMU / KVM).
@@ -22,7 +24,6 @@
 ## 🚀 Quick Start
 ```bash
 make all   # Поднять всё: ВМ -> K8s -> Приложения
-make apps  # Только деплой сервисов (Nextcloud, Jellyfin, Speedtest)
 make down  # Полная очистка стенда
 ```
 
