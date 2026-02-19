@@ -1,1 +1,0 @@
-kubeadm join 192.168.1.232:6443 --token usycws.38m2gxzks1hod9v6 --discovery-token-ca-cert-hash sha256:6791d6e640a2ccd395348c5132535bddb01748f75ff216efe34e5a2c1ee4aa2b  --node-name 
