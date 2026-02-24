@@ -1,0 +1,38 @@
+csiDriver:
+  name: "org.democratic-csi.iscsi"
+
+driver:
+  config:
+    driver: freenas-api-iscsi
+    sshConnection:
+      port: 22
+    httpConnection:
+      protocol: https
+      port: 443
+      apiVersion: 2
+      allowInsecure: true
+    zfs:
+      datasetEnableQuotas: true
+      datasetEnableReservation: false
+      datasetPermissionsMode: "0777"
+      datasetPermissionsUser: 0
+      datasetPermissionsGroup: 0
+    iscsi:
+      targetPortals: []
+      namePrefix: pvc-
+      nameSuffix: "-disk"
+      extentInsecureTpc: true
+      extentXenCompat: false
+      extentDisablePhysicalBlockSize: true
+      extentBlocksize: 512
+      extentRpm: "SSD"
+      extentAvailThreshold: 0
+
+storageClasses:
+- name: truenas-iscsi
+  defaultClass: true
+  reclaimPolicy: Delete
+  volumeBindingMode: Immediate
+  allowVolumeExpansion: true
+  parameters:
+    fsType: ext4

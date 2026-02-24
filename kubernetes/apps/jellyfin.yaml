@@ -17,6 +17,13 @@ spec:
         image: jellyfin/jellyfin:latest
         ports:
         - containerPort: 8096
+        volumeMounts:
+        - name: jellyfin-config
+          mountPath: /config
+      volumes:
+      - name: jellyfin-config
+        persistentVolumeClaim:
+          claimName: jellyfin-config-pvc
 ---
 apiVersion: v1
 kind: Service

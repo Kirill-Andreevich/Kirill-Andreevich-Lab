@@ -26,3 +26,8 @@ join_command.txt
 join_command.txt
 *.tfvars
 generated_hosts.ini
+
+# Helm & K8s Secrets
+*-secrets.yaml
+join_command.txt
+.kube/
