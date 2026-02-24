@@ -4,35 +4,40 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# SSH & Keys (КРИТИЧЕСКИ ВАЖНО)
+*.pem
+*.key
+*.cer
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+*.ppk
+
 # Terraform (Infrastructure State)
 .terraform/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
+*.tfvars
 
 # Ansible & Inventory
 *.log
 *.retry
 ansible/inventory/hosts.ini
 ansible/generated/*
+generated_hosts.ini
 
 # Virtualization (Heavy Images)
 *.qcow2
 *.iso
 *.img
-*.tfvars
-join_command.txt
-.kube/config
-join_command.txt
-*.tfvars
-generated_hosts.ini
 
-# Helm & K8s Secrets
+# Kubernetes & Helm
 *-secrets.yaml
-join_command.txt
 .kube/
+join_command.txt
 
 # Личные черновики и документация в разработке
 docs/
 *.txt
-docs/
