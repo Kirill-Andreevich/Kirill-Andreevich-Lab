@@ -1,0 +1,32 @@
+- name: Подготовка K8s нод к iSCSI и починка сети
+  hosts: k8s_nodes  # Теперь мы бьем точно в цель
+  become: yes
+  tasks:
+    - name: Проверка ОС (защита от дурака)
+      ansible.builtin.assert:
+        that: ansible_facts['os_family'] == "Debian"
+        fail_msg: "Этот плейбук только для Ubuntu/Debian нод кубера!"
+
+    - name: Установка необходимых пакетов
+      ansible.builtin.apt:
+        name: [open-iscsi, lsscsi, sg3-utils]
+        state: present
+        update_cache: yes
+
+    - name: Запуск и включение iscsid
+      ansible.builtin.service:
+        name: iscsid
+        state: started
+        enabled: yes
+
+    - name: Починка Flannel Subnet
+      ansible.builtin.shell: |
+        mkdir -p /run/flannel
+        cat << 'SUB' > /run/flannel/subnet.env
+        FLANNEL_NETWORK=10.244.0.0/16
+        FLANNEL_SUBNET=10.244.1.1/24
+        FLANNEL_MTU=1450
+        FLANNEL_IPMASQ=true
+        SUB
+      args:
+        creates: /run/flannel/subnet.env

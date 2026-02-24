@@ -31,3 +31,7 @@ generated_hosts.ini
 *-secrets.yaml
 join_command.txt
 .kube/
+
+# Личные черновики и документация в разработке
+docs/
+*.txt
