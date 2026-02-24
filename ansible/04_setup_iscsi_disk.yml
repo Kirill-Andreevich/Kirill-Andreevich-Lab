@@ -3,7 +3,7 @@
   hosts: k8s_workers
   become: true
   vars:
-    truenas_ip: "192.168.1.176"
+    truenas_ip: "192.168.1.30"
 
   tasks:
     - name: Discovery targets

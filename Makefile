@@ -40,9 +40,12 @@ all: ## 1. Инфра, 2. Кубер, 3. Аппсы
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -A
 
-down: ## Удалить всё (Terraform destroy)
+down: ## 1. Удалить ВМ, 2. Почистить мусор
 	cd $(TF_DIR) && terraform destroy -auto-approve
 	rm -f ./join_command.txt
+	@# Опционально: чистим локальный конфиг, чтобы не было конфликтов
+	rm -f $(KUBECONFIG_PATH)
+	@echo "--- Infrastructure DESTROYED and Cleaned ---"
 
 apps: ## Только деплой приложений (Speedtest, Jellyfin, Nextcloud)
 	@echo "Applying Kubernetes manifests from $(APPS_DIR)..."
@@ -50,7 +53,21 @@ apps: ## Только деплой приложений (Speedtest, Jellyfin, Ne
 	kubectl get pods -o wide
 
 clean-pvc: ## Очистить "хвосты" на TrueNAS (если удаляешь кластер)
-	ssh km@192.168.1.176 "sudo zfs destroy -r NVME/k8s-vols/data && sudo zfs create NVME/k8s-vols/data"
+	ssh km@192.168.1.30 "sudo zfs destroy -r NVME/k8s-vols/data && sudo zfs create NVME/k8s-vols/data"
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+tf-apply: ## 1. Только поднять виртуалки (Terraform)
+	@echo "--- Starting Terraform Apply ---"
+	cd $(TF_DIR) && terraform init && terraform apply -auto-approve
+
+tf-destroy: ## 1. Только удалить виртуалки (Terraform)
+	@echo "--- Starting Terraform Destroy ---"
+	cd $(TF_DIR) && terraform destroy -auto-approve
+
+k8s-config: ## 2. Скопировать конфиг кубера себе на хост
+	@echo "--- Fetching kubeconfig from Master ---"
+	mkdir -p $(HOME)/.kube
+	scp km@192.168.1.100:/etc/kubernetes/admin.conf $(KUBECONFIG_PATH)
+	sudo chown $(shell id -u):$(shell id -g) $(KUBECONFIG_PATH)

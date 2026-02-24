@@ -23,10 +23,9 @@ kind: Service
 metadata:
   name: speedtest-svc
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: speedtest
   ports:
     - port: 3000
       targetPort: 3000
-      nodePort: 30030

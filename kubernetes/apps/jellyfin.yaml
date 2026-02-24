@@ -23,10 +23,9 @@ kind: Service
 metadata:
   name: jellyfin-svc
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: jellyfin
   ports:
     - port: 8096
       targetPort: 8096
-      nodePort: 30096

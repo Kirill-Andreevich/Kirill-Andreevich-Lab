@@ -19,5 +19,5 @@ provider "libvirt" {
 # Хост 9800X (Workstation)
 provider "libvirt" {
   alias = "workstation"
-  uri   = "qemu+ssh://km@192.168.1.234/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
+  uri   = "qemu+ssh://km@192.168.1.23/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
 }

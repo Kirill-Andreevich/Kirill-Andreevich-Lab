@@ -11,7 +11,7 @@ variable "base_image_url" {
 
 variable "truenas_ip" {
   type    = string
-  default = "192.168.1.176"
+  default = "192.168.1.30"
 }
 
 variable "iscsi_iqn" {

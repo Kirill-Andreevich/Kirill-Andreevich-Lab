@@ -23,10 +23,9 @@ kind: Service
 metadata:
   name: nextcloud-svc
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: nextcloud
   ports:
     - port: 80
       targetPort: 80
-      nodePort: 30088

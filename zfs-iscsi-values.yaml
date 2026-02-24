@@ -5,7 +5,7 @@ driver:
   config:
     driver: zfs-generic-iscsi
     sshConnection:
-      host: 192.168.1.176
+      host: 192.168.1.30
       port: 22
       username: km
       privateKey: |
@@ -18,7 +18,7 @@ driver:
         -----END OPENSSH PRIVATE KEY-----
     httpConnection:
       protocol: https
-      host: 192.168.1.176
+      host: 192.168.1.30
       port: 443
       apiKey: "2-jXhT6R9Vnk4PHNs3PyFBUYdq2NSyADl7kS9AYDMoTLHW70cGdpMXYOr9L7IWthQr"
       allowInsecure: true
@@ -30,7 +30,7 @@ driver:
     iscsi:
       # ВОТ ЭТОЙ СТРОКИ НЕ ХВАТАЛО
       shareStrategy: freenas-api-iscsi
-      targetPortal: "192.168.1.176:3260"
+      targetPortal: "192.168.1.30:3260"
       targetGroups:
         - targetPortalGroupTag: 2
           targetInitiatorGroupTag: 1
