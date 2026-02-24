@@ -52,6 +52,7 @@ graph TD
 
     Client((Web Client)) -->|EXTERNAL-IP| MetalLB
     MetalLB -->|Routes| W1 & W2
+
 </details>
 
 🛠 Управление (Быстрый старт)
