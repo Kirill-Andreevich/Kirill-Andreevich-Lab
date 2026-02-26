@@ -1,0 +1,52 @@
+---
+- name: Бэкап проекта Homelab в TrueNAS S3
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  vars:
+    # Доступы к TrueNAS MinIO
+    s3_host: "http://192.168.1.30:9000"
+    s3_bucket: "homelab-backups"
+    aws_access_key: "homelab-backup-key"
+    aws_secret_key: "SecretBackupPass123"
+    
+    # Пароль для шифрования самого бэкапа (ОБЯЗАТЕЛЬНО СОХРАНИ!)
+    restic_password: "MySuperSecureResticKey!"
+    
+    # Что бэкапим (корень проекта)
+    backup_source: "/home/km/homelab"
+
+  tasks:
+    - name: Установка Restic
+      become: yes
+      pacman:
+        name: restic
+        state: present
+
+    - name: Инициализация репозитория Restic в S3
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+        RESTIC_PASSWORD: "{{ restic_password }}"
+      command: restic -r s3:{{ s3_host }}/{{ s3_bucket }} init
+      register: restic_init
+      failed_when: 
+        - restic_init.rc != 0
+        - "'already initialized' not in restic_init.stderr"
+      changed_when: "'created restic repository' in restic_init.stdout"
+
+    - name: Запуск бэкапа (исключая venv и .git)
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+        RESTIC_PASSWORD: "{{ restic_password }}"
+      command: >
+        restic -r s3:{{ s3_host }}/{{ s3_bucket }} backup {{ backup_source }}
+        --exclude="{{ backup_source }}/venv"
+        --exclude="{{ backup_source }}/.git"
+      register: backup_result
+
+    - name: Результат резервного копирования
+      debug:
+        var: backup_result.stdout_lines

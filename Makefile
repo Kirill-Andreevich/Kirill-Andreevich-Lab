@@ -1,30 +1,43 @@
+# --- ПЕРЕМЕННЫЕ ПУТЕЙ ---
 TF_DIR = terraform
 ANSIBLE_DIR = ansible
 INVENTORY = $(ANSIBLE_DIR)/inventory/generated_hosts.ini
 APPS_DIR = kubernetes/apps
 KUBECONFIG_PATH = $(HOME)/.kube/config
 
+# Пути к плейбукам безопасности и бэкапа
+ANSIBLE_SECRETS = $(ANSIBLE_DIR)/00_generate_secrets.yml
+ANSIBLE_BACKUP = $(ANSIBLE_DIR)/99_s3_backup.yml
+
+# Переменные окружения для Restic (чтобы не вводить экспорт вручную)
+R_ENV = source ./.restic_env
+
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all down apps clean-pvc help
+.PHONY: all down apps clean-pvc help backup generate-secrets backup-list backup-ls backup-check vm-status vm-start vm-stop
 
-all: ## 1. Инфра, 2. Кубер, 3. Хранилище, 4. Аппсы
+# --- ОСНОВНОЙ ЦИКЛ ---
+
+all: ## 1. Инфра, 2. Секреты, 3. Кубер, 4. Хранилище, 5. Аппсы
 	@echo "--- Starting Terraform ---"
 	cd $(TF_DIR) && terraform init && terraform apply -auto-approve
-	
+
+	@echo "--- Generating Secrets from Vault ---"
+	ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
+
 	@echo "--- Waiting for SSH (30s) ---"
 	sleep 30
-	
+
 	@echo "--- Running Ansible Playbooks ---"
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/01_prepare.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_install_k8s.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_init_master.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_join_workers.yml
-	
+
 	@echo "--- Deploying Network (Flannel) ---"
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-	
-	@echo "--- Waiting for Kubernetes API and Nodes to be Ready ---"
+
+	@echo "--- Waiting for Kubernetes API ---"
 	@until KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes > /dev/null 2>&1; do sleep 2; echo "Waiting for API..."; done
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
@@ -40,40 +53,53 @@ all: ## 1. Инфра, 2. Кубер, 3. Хранилище, 4. Аппсы
 		-f zfs-iscsi-base.yaml \
 		-f zfs-iscsi-prod.yaml \
 		-f zfs-iscsi-secrets.yaml
-	
-	@echo "--- Waiting for Storage Provisioner to be Ready ---"
-	@sleep 15
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready pods --all -n democratic-csi --timeout=300s
-	
+
+	@echo "--- Cleaning up temporary secrets ---"
+	rm -f zfs-iscsi-secrets.yaml
+
 	@echo "--- Cluster is READY! Deploying applications ---"
 	KUBECONFIG=$(KUBECONFIG_PATH) $(MAKE) apps
-	
-	@echo "--- All systems GO! ---"
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get svc -o wide
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -A
 
-down: ## 1. Удалить ресурсы K8s (освободить TrueNAS), 2. Удалить ВМ
-	@echo "--- Gracefully removing K8s apps and PVCs to release TrueNAS locks ---"
+# --- БЭКАПЫ (RESTIC) ---
+
+backup: ## Запустить бэкап проекта в S3
+	@echo "--- Starting Restic Backup ---"
+	ansible-playbook $(ANSIBLE_BACKUP) -K --ask-vault-pass
+
+backup-list: ## Посмотреть список всех снимков в S3
+	@$(R_ENV) && restic snapshots
+
+backup-ls: ## Посмотреть файлы внутри последнего бэкапа
+	@$(R_ENV) && restic ls latest
+
+backup-check: ## Проверить целостность данных в S3
+	@$(R_ENV) && restic check
+
+# --- УПРАВЛЕНИЕ ---
+
+generate-secrets: ## Только создать файл секретов для проверки
+	ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
+
+apps: ## Деплой приложений
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(APPS_DIR)/
+
+down: confirm ## Удалить ресурсы K8s и виртуалки
+	@echo "--- Removing K8s resources ---"
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=60s
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=60s
-	@echo "--- Waiting for Democratic CSI to clean up TrueNAS (20s) ---"
-	@sleep 20
-	
-	@echo "--- Starting Terraform Destroy ---"
+	@echo "--- Terraform Destroy ---"
 	cd $(TF_DIR) && terraform destroy -auto-approve
-	
-	@echo "--- Cleaning local files ---"
-	rm -f ./join_command.txt
-	rm -f $(KUBECONFIG_PATH)
-	@echo "--- Infrastructure DESTROYED and Cleaned ---"
+	rm -f ./join_command.txt $(KUBECONFIG_PATH) zfs-iscsi-secrets.yaml
 
-apps: ## Только деплой приложений
-	@echo "Applying Kubernetes manifests from $(APPS_DIR)..."
-	kubectl apply -f $(APPS_DIR)/
+vm-status: ## Статус всех виртуалок на гипервизорах
+	ssh km@192.168.1.22 "virsh -c qemu:///system list --all"
+	-ssh km@192.168.1.23 "virsh -c qemu:///system list --all"
 
-clean-pvc: ## Очистить хвосты на TrueNAS (ручной режим)
+clean-pvc: ## Очистить ZFS на TrueNAS
 	ssh km@192.168.1.30 "sudo zfs destroy -r NVME/k8s-vols/data && sudo zfs create NVME/k8s-vols/data"
 
-help: ## Показать список команд
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+confirm:
+	@read -p "⚠️ УВЕРЕНЫ? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
+
+help: ## Показать это меню
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

@@ -18,6 +18,7 @@ FILES=$(find . -type f \( -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -na
     -not -path "*/archive/*" \
     -not -path "*/docs/*" \
     -not -name "*-secrets.yaml")
+FILES="./Makefile $FILES"
 
 for FILE in $FILES; do
     echo -e "\n\nFILE: $FILE" >> $OUTPUT
