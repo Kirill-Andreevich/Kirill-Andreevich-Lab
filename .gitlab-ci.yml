@@ -1,11 +1,53 @@
 stages:
-  - check
+  - lint
+  - deploy_infra
+  - deploy_apps
 
-test-k8s-connection:
-  stage: check
-  image: bitnami/kubectl:latest
+# Используем образ с Terraform, остальное доставим через apk
+image: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
+
+before_script:
+  # 1. Установка недостающих инструментов
+  - apk add --no-cache make ansible kubectl helm openssh-client
+  
+  # 2. Настройка SSH-ключа (именно id_ed25519, как в твоем инвентаре)
+  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+  
+  # 3. Настройка путей для Makefile и Ansible
+  - mkdir -p ansible/inventory && cp "$ANSIBLE_HOSTS" ansible/inventory/generated_hosts.ini
+  - mkdir -p ~/.kube && cp "$KUBECONFIG" ~/.kube/config
+  
+  # 4. Подготовка пароля Vault для автоматизации
+  - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
+  - export ANSIBLE_VAULT_PASSWORD_FILE=$(pwd)/.vault_pass
+  
+  # 5. Отключаем интерактивные вопросы SSH
+  - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+# Проверка синтаксиса (Lint)
+linting:
+  stage: lint
   script:
-    - kubectl get nodes
-    - kubectl get pods -A
-  tags:
-    - k8s
+    - terraform -chdir=terraform init -backend=false
+    - terraform -chdir=terraform validate
+    - ansible-playbook --syntax-check -i ansible/inventory/generated_hosts.ini ansible/site.yml
+  allow_failure: false
+
+# Развертывание всей инфраструктуры (Terraform + Ansible)
+infrastructure:
+  stage: deploy_infra
+  script:
+    # Запускаем твой Makefile, который сделает всё: от ВМ до хранилища
+    - make all
+  only:
+    - main
+  when: manual # Запуск "по кнопке" для контроля
+
+# Деплой приложений (Jellyfin, Nextcloud и др.)
+applications:
+  stage: deploy_apps
+  script:
+    - make apps
+  only:
+    - main
