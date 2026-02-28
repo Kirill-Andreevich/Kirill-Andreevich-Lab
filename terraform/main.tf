@@ -151,6 +151,7 @@ resource "libvirt_domain" "k8s_worker" {
   }
 }
 
+/*
 # --- GITLAB ---
 resource "libvirt_volume" "gitlab_disk" {
   provider       = libvirt.workstation
@@ -195,6 +196,7 @@ resource "libvirt_domain" "gitlab_srv" {
     bridge    = "br0"
     addresses = [var.ips.gitlab]
   }
+
   disk { volume_id = libvirt_volume.gitlab_disk.id }
 
   lifecycle {
@@ -202,3 +204,4 @@ resource "libvirt_domain" "gitlab_srv" {
     replace_triggered_by = [libvirt_cloudinit_disk.init_gitlab]
   }
 }
+*/
