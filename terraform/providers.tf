@@ -1,11 +1,11 @@
 terraform {
   required_providers {
-    libvirt = { 
+    libvirt = {  
       source  = "dmacvicar/libvirt"
-      version = "0.7.1" 
+      version = "0.7.1"  
     }
-    local = { 
-      source = "hashicorp/local" 
+    local = {  
+      source = "hashicorp/local"  
     }
   }
 }
@@ -13,11 +13,11 @@ terraform {
 # Хост 9950X (Compute)
 provider "libvirt" {
   alias = "compute"
-  uri   = "qemu+ssh://km@192.168.1.22/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
+  uri   = "qemu+ssh://km@192.168.1.22/system?known_hosts_verify=ignore"
 }
 
 # Хост 9800X (Workstation)
 provider "libvirt" {
   alias = "workstation"
-  uri   = "qemu+ssh://km@192.168.1.23/system?sshauth=privkey&keyfile=/home/km/.ssh/id_ed25519&known_hosts_verify=ignore"
+  uri   = "qemu+ssh://km@192.168.1.23/system?known_hosts_verify=ignore"
 }
