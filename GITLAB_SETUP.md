@@ -65,3 +65,20 @@ helm upgrade --install gitlab-runner ./gitlab-runner-0.86.0.tgz \
 Bash
 ￼
 kubectl get pods -n gitlab-runner
+
+## 5. Траблшутинг (Решение проблем)
+
+### Проблема: Runner завис в статусе ContainerCreating
+Если в Kubernetes под раннера долго не запускается, а команда `kubectl describe pod ...` показывает ошибку:
+`plugin type="flannel" failed (add): failed to load flannel 'subnet.env': no such file or directory`
+
+**Причина:**
+На нодах кластера не загружен модуль ядра `br_netfilter` или не включены параметры `bridge-nf-call-iptables`.
+
+**Решение:**
+1. Проверь статус сетевых подов: `kubectl get pods -n kube-flannel`.
+2. Если они в `CrashLoopBackOff`, проверь наличие модуля: `lsmod | grep br_netfilter`.
+3. Чтобы исправить вручную на всех нодах:
+   ```bash
+   sudo modprobe br_netfilter
+   sudo sysctl -w net.bridge.bridge-nf-call-iptables=1

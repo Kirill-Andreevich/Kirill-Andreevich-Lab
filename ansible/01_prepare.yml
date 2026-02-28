@@ -23,6 +23,14 @@
         state: present
       loop: [overlay, br_netfilter]
 
+    - name: Ensure modules are loaded on boot
+      copy:
+        content: |
+          overlay
+          br_netfilter
+        dest: /etc/modules-load.d/k8s.conf
+
+
     - name: Set sysctl networking parameters
       sysctl:
         name: "{{ item.key }}"
