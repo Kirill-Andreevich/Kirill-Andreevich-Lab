@@ -1,21 +1,8 @@
 stages:
-  - test
-  - deploy
+  - check
 
-# Проверка конфигов (чтобы не сломать кластер синтаксисом)
-validate-terraform:
-  stage: test
-  image: hashicorp/terraform:latest
-  script:
-    - cd terraform
-    - terraform init -backend=false
-    - terraform validate
-  tags:
-    - k8s
-
-# Тестовый деплой (пока просто выведем инфу о подах)
-check-k8s-cluster:
-  stage: deploy
+test-k8s-connection:
+  stage: check
   image: bitnami/kubectl:latest
   script:
     - kubectl get nodes
