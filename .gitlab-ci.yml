@@ -6,16 +6,16 @@ stages:
 image: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
 
 before_script:
-  # 1. Устанавливаем базовые утилиты, которые точно есть в apk
-  - apk add --no-cache make ansible openssh-client curl git
+  # 1. Добавили openssl в список установки
+  - apk add --no-cache make ansible openssh-client curl git openssl
   
-  # 2. Скачиваем kubectl (версия 1.31, как в твоем инвентаре)
+  # 2. Скачиваем kubectl (этот этап у тебя уже прошел на отлично)
   - curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
   - chmod +x kubectl && mv kubectl /usr/local/bin/
   
-  # 3. Скачиваем Helm
+  # 3. Теперь скрипт Helm увидит openssl и отработает как надо
   - curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
-  
+    
   # 4. Настройка SSH и ключей (id_ed25519)
   - mkdir -p ~/.ssh && chmod 700 ~/.ssh
   - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
