@@ -3,48 +3,47 @@ stages:
   - deploy_infra
   - deploy_apps
 
-# Используем образ с Terraform, остальное доставим через apk
 image: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
 
 before_script:
-  # 1. Установка недостающих инструментов
-  - apk add --no-cache make ansible kubectl helm openssh-client
+  # 1. Устанавливаем базовые утилиты, которые точно есть в apk
+  - apk add --no-cache make ansible openssh-client curl git
   
-  # 2. Настройка SSH-ключа (именно id_ed25519, как в твоем инвентаре)
+  # 2. Скачиваем kubectl (версия 1.31, как в твоем инвентаре)
+  - curl -LO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+  - chmod +x kubectl && mv kubectl /usr/local/bin/
+  
+  # 3. Скачиваем Helm
+  - curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sh
+  
+  # 4. Настройка SSH и ключей (id_ed25519)
   - mkdir -p ~/.ssh && chmod 700 ~/.ssh
   - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
   
-  # 3. Настройка путей для Makefile и Ansible
+  # 5. Настройка путей для твоего Makefile
   - mkdir -p ansible/inventory && cp "$ANSIBLE_HOSTS" ansible/inventory/generated_hosts.ini
   - mkdir -p ~/.kube && cp "$KUBECONFIG" ~/.kube/config
   
-  # 4. Подготовка пароля Vault для автоматизации
+  # 6. Подготовка пароля Vault и SSH-конфига
   - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
   - export ANSIBLE_VAULT_PASSWORD_FILE=$(pwd)/.vault_pass
-  
-  # 5. Отключаем интерактивные вопросы SSH
   - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
 
-# Проверка синтаксиса (Lint)
 linting:
   stage: lint
   script:
     - terraform -chdir=terraform init -backend=false
     - terraform -chdir=terraform validate
     - ansible-playbook --syntax-check -i ansible/inventory/generated_hosts.ini ansible/site.yml
-  allow_failure: false
 
-# Развертывание всей инфраструктуры (Terraform + Ansible)
 infrastructure:
   stage: deploy_infra
   script:
-    # Запускаем твой Makefile, который сделает всё: от ВМ до хранилища
     - make all
   only:
     - main
-  when: manual # Запуск "по кнопке" для контроля
+  when: manual 
 
-# Деплой приложений (Jellyfin, Nextcloud и др.)
 applications:
   stage: deploy_apps
   script:
