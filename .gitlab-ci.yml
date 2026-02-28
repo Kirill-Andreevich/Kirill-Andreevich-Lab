@@ -7,7 +7,7 @@ image: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
 
 before_script:
   # 1. Устанавливаем нужные пакеты (добавлен openssl для Helm)
-  - apk add --no-cache make ansible openssh-client curl git openssl
+  - apk add --no-cache make ansible openssh-client curl git openssl cdrkit
 
   # 2. Умная маршрутизация зеркал: базовые пакеты с Яндекса, экзотика с комьюнити
   - |
