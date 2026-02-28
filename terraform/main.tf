@@ -55,7 +55,11 @@ resource "libvirt_cloudinit_disk" "init_master" {
   provider  = libvirt.workstation
   name      = "init-master.iso"
   pool      = "default"
-  user_data = local.common_cloudinit
+  user_data = <<EOT
+#cloud-config
+hostname: k8s-master
+${local.common_cloudinit}
+EOT
 
   network_config = <<EOT
 version: 2

@@ -9,12 +9,17 @@ before_script:
   # 1. Устанавливаем нужные пакеты (добавлен openssl для Helm)
   - apk add --no-cache make ansible openssh-client curl git openssl
 
-  # 2. Настраиваем комьюнити-зеркало Terraform для обхода блокировок
+  # 2. Умная маршрутизация зеркал: базовые пакеты с Яндекса, экзотика с комьюнити
   - |
     cat <<EOF > ~/.terraformrc
     provider_installation {
       network_mirror {
+        url = "https://terraform-mirror.yandexcloud.net/"
+        include = ["registry.terraform.io/hashicorp/*"]
+      }
+      network_mirror {
         url = "https://terraform-registry-mirror.ru/"
+        include = ["registry.terraform.io/dmacvicar/*"]
       }
       direct {
         exclude = ["*/*"]

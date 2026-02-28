@@ -4,6 +4,8 @@ ANSIBLE_DIR = ansible
 INVENTORY = $(ANSIBLE_DIR)/inventory/generated_hosts.ini
 APPS_DIR = kubernetes/apps
 KUBECONFIG_PATH = $(HOME)/.kube/config
+HYPERVISORS = 192.168.1.22 192.168.1.23
+SSH_USER = km
 
 # Пути к плейбукам безопасности и бэкапа
 ANSIBLE_SECRETS = $(ANSIBLE_DIR)/00_generate_secrets.yml
@@ -91,9 +93,32 @@ down: confirm ## Удалить ресурсы K8s и виртуалки
 	cd $(TF_DIR) && terraform destroy -auto-approve
 	rm -f ./join_command.txt $(KUBECONFIG_PATH) zfs-iscsi-secrets.yaml
 
+# --- Информационные команды ---
 vm-status: ## Статус всех виртуалок на гипервизорах
-	ssh km@192.168.1.22 "virsh -c qemu:///system list --all"
-	-ssh km@192.168.1.23 "virsh -c qemu:///system list --all"
+	@for host in $(HYPERVISORS); do \
+		echo "--- Status for $$host ---"; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; \
+	done
+
+# --- Управление питанием ---
+vm-start: ## Включить все ВМ кроме Windows
+	@for host in $(HYPERVISORS); do \
+		echo ">>> Starting non-win VMs on $$host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system start {}"; \
+	done
+
+vm-stop: ## Мягкое выключение всех ВМ кроме Windows
+	@for host in $(HYPERVISORS); do \
+		echo ">>> Stopping non-win VMs on $$host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
+	done
+
+vm-kill: ## ЖЕСТКОЕ выключение (Destroy) с подтверждением
+	@echo -n "⚠️  WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
+	@for host in $(HYPERVISORS); do \
+		echo ">>> KILLING non-win VMs on $$host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
+	done
 
 clean-pvc: ## Очистить ZFS на TrueNAS
 	ssh km@192.168.1.30 "sudo zfs destroy -r NVME/k8s-vols/data && sudo zfs create NVME/k8s-vols/data"
@@ -103,3 +128,26 @@ confirm:
 
 help: ## Показать это меню
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# ==========================================
+# --- ИНФОРМАЦИОННЫЕ КОМАНДЫ (СЕТЬ) ---
+# ==========================================
+
+vm-ips: ## Показать IP всех узлов из инвентаря Terraform
+	@echo "--- IP-адреса из инвентаря ---"
+	@if [ -f $(INVENTORY) ]; then \
+		cat $(INVENTORY) | grep 'ansible_host' | awk '{print $$1 " : " $$2}' | sed 's/ansible_host=//'; \
+	else \
+		echo "Инвентарь пуст или Terraform не запускался."; \
+	fi
+
+live-ips: ## Найти реальные IP через ARP (обход моста br0)
+	@for host in $(HYPERVISORS); do \
+		echo "--- Хост: $$host ---"; \
+		ssh -o StrictHostKeyChecking=no $(SSH_USER)@$$host \
+		"for dom in \$$(virsh -c qemu:///system list --name --state-running); do \
+			mac=\$$(virsh -c qemu:///system dumpxml \$$dom | grep 'mac address' | head -1 | cut -d\' -f2); \
+			ip=\$$(ip neigh | grep \$$mac | awk '{print \$$1}'); \
+			printf \"%-15s : %s\n\" \"\$$dom\" \"\$${ip:-Не найден в ARP}\"; \
+		done"; \
+	done

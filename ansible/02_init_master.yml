@@ -4,9 +4,18 @@
   become: true
   tasks:
     - name: Kubeadm Init
-      shell: "kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={{ ansible_host }}"
+      # Добавили --node-name, чтобы сразу всё было четко
+      shell: "kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={{ ansible_host }} --node-name={{ inventory_hostname }}"
       register: init_out
       failed_when: "init_out.rc != 0 and 'already exists' not in init_out.stderr"
+
+    - name: Wait for API Server to be ready
+      # Это лечит тот самый TLS handshake timeout
+      wait_for:
+        host: "{{ ansible_host }}"
+        port: 6443
+        delay: 5
+        timeout: 60
 
     - name: Setup kubeconfig for km
       file: { path: "/home/km/.kube", state: directory, owner: km, group: km }
@@ -28,8 +37,18 @@
       delegate_to: localhost
       become: false
       copy:
-        content: "{{ join_cmd.stdout }} --node-name "
+        # Убрали висящий --node-name, так как воркеры сами назовут себя в своем плейбуке
+        content: "{{ join_cmd.stdout }}"
         dest: "./join_command.txt"
 
     - name: Fetch kubeconfig to Manjaro
       fetch: { src: /etc/kubernetes/admin.conf, dest: ~/.kube/config, flat: yes }
+
+    - name: Fix IP address in local kubeconfig
+      # Чтобы твоя Manjaro могла достучаться до API по IP, а не по имени k8s-master
+      delegate_to: localhost
+      become: false
+      replace:
+        path: ~/.kube/config
+        regexp: 'server: https://.*:6443'
+        replace: 'server: https://{{ ansible_host }}:6443'

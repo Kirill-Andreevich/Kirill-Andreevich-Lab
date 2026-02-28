@@ -4,10 +4,14 @@
   become: true
   tasks:
     - name: Read join command from local file
+      # Забираем команду, которую сгенерировал мастер на прошлом шаге
       set_fact:
         join_cmd: "{{ lookup('file', './join_command.txt') }}"
 
     - name: Execute Join
-      shell: "{{ join_cmd }} {{ inventory_hostname }}"
+      # Добавляем --node-name, чтобы воркеры не назывались как попало
+      shell: "{{ join_cmd }} --node-name {{ inventory_hostname }}"
       register: join_out
+      # Идемпотентность: если нода уже в кластере, Ansible не упадет с ошибкой
       failed_when: "join_out.rc != 0 and 'already exists' not in join_out.stderr"
+      changed_when: "'This node has joined the cluster' in join_out.stdout"

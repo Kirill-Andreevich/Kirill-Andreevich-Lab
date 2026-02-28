@@ -82,3 +82,10 @@ kubectl get pods -n gitlab-runner
    ```bash
    sudo modprobe br_netfilter
    sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
+### Исправление прав (RBAC)
+Если джоба падает с ошибкой Forbidden для аккаунта `default`:
+```bash
+kubectl create clusterrolebinding gitlab-runner-default-admin \
+  --clusterrole=cluster-admin \
+  --serviceaccount=gitlab-runner:default
