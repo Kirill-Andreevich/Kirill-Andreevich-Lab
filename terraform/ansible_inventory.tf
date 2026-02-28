@@ -5,9 +5,9 @@ resource "local_file" "ansible_inventory" {
 k8s-master ansible_host=${var.ips.master}
 
 [k8s_workers]
-%{ for i in range(var.worker_count) ~}
+%{for i in range(var.worker_count)~}
 k8s-worker-${i} ansible_host=192.168.1.${var.ips.worker_start_ip + i}
-%{ endfor ~}
+%{endfor~}
 
 [gitlab]
 gitlab-srv ansible_host=${var.ips.gitlab}

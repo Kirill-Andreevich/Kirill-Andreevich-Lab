@@ -86,7 +86,7 @@ resource "libvirt_domain" "k8s_master" {
   qemu_agent = true
   cloudinit  = libvirt_cloudinit_disk.init_master.id
   cpu { mode = "host-passthrough" }
-  network_interface {
+  network_interface { 
     bridge    = "br0"
     addresses = [var.ips.master]
   }
@@ -140,7 +140,7 @@ resource "libvirt_domain" "k8s_worker" {
   qemu_agent = true
   cloudinit  = libvirt_cloudinit_disk.init_worker[count.index].id
   cpu { mode = "host-passthrough" }
-  network_interface {
+  network_interface { 
     bridge    = "br0"
     addresses = ["192.168.1.${var.ips.worker_start_ip + count.index}"]
   }
@@ -151,7 +151,6 @@ resource "libvirt_domain" "k8s_worker" {
   }
 }
 
-/*
 # --- GITLAB ---
 resource "libvirt_volume" "gitlab_disk" {
   provider       = libvirt.workstation
@@ -196,7 +195,6 @@ resource "libvirt_domain" "gitlab_srv" {
     bridge    = "br0"
     addresses = [var.ips.gitlab]
   }
-
   disk { volume_id = libvirt_volume.gitlab_disk.id }
 
   lifecycle {
@@ -204,4 +202,3 @@ resource "libvirt_domain" "gitlab_srv" {
     replace_triggered_by = [libvirt_cloudinit_disk.init_gitlab]
   }
 }
-*/
