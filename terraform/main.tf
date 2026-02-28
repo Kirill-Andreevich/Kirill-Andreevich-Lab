@@ -194,6 +194,7 @@ resource "libvirt_domain" "gitlab_srv" {
   disk { volume_id = libvirt_volume.gitlab_disk.id }
 
   lifecycle {
+    prevent_destroy      = true
     replace_triggered_by = [libvirt_cloudinit_disk.init_gitlab]
   }
 }
