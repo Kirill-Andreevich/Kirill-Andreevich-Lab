@@ -51,8 +51,7 @@ before_script:
   # 7. Подготовка пароля Vault и отключение проверки хостов SSH
   - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
   - export ANSIBLE_VAULT_PASSWORD_FILE=$(pwd)/.vault_pass
-  - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-
+  - echo -e "Host *\n\tStrictHostKeyChecking no\n\tIdentityFile ~/.ssh/id_ed25519\n\n" > ~/.ssh/config
 # --- СТАДИИ ПАЙПЛАЙНА ---
 
 linting:
