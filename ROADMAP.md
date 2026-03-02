@@ -1,30 +1,24 @@
-# 🗺 Roadmap: Kirill-Andreevich-Lab
+# 🗺 Homelab Roadmap: The X3D Sovereign
 
-## ✅ Phase 1: Инфраструктура
-- [x] Terraform: Развертывание K8s Master и Workers (QEMU/KVM + Ubuntu 24.04).
-- [x] Cloud-init: Статичные IP (Netplan) без DHCP-сюрпризов.
-- [x] Ansible: Подготовка узлов, настройка iSCSI/Multipath.
+## ✅ Phase 1: Foundation (Completed)
+- [cite_start]**Compute:** Автоматизация ВМ на Ryzen 9950X3D/9800X3D[cite: 30, 446].
+- [cite_start]**Network:** MetalLB для управления локальными IP сервисов[cite: 3, 395].
+- [cite_start]**Storage:** TrueNAS SCALE + iSCSI Democratic CSI[cite: 3, 411, 416].
+- [cite_start]**Core Services:** Nextcloud, Jellyfin и Speedtest[cite: 387, 389, 391].
 
-## ✅ Phase 2: K8s Core, Storage & Security
-- [x] Kubeadm: Инициализация кластера v1.31, сеть Flannel.
-- [x] Helm: Установка Democratic CSI (TrueNAS API v2.0).
-- [x] **Security:** Внедрение Ansible Vault. Секреты (API, SSH, пароли) генерируются "на лету" перед деплоем и не хранятся на диске (Immutable secrets).
-- [x] Storage: Динамический провижининг iSCSI (ZVOL) работает корректно (Binding).
-- [x] **Backup (IaC):** Настроено зашифрованное инкрементальное резервное копирование кода в TrueNAS S3 (MinIO) через Restic.
+## 🔄 Phase 2: Observability & Protection (Active)
+- [cite_start]**Monitoring:** Prometheus, Grafana и алерты в Telegram[cite: 16, 429].
+- [cite_start]**Backup:** Безопасный бэкап GitLab в S3 через Restic + Vault[cite: 83, 91, 430].
+- [ ] **Loki Stack:** Централизованный сбор логов со всех подов и нод.
+- [ ] **Velero:** Снапшоты всего K8s кластера в S3 на TrueNAS.
 
-## 🔄 Phase 3: Приложения ("Бессмертные" поды)
-- [x] Nextcloud: Deployment + iSCSI PVC.
-- [x] Jellyfin: Deployment + iSCSI PVC (настройки и база).
-- [x] Speedtest: Stateless Deployment.
-- [ ] Jellyfin: Подключение тяжелой медиатеки через NFS/SMB (ReadWriteMany).
-- [ ] Ingress Controller & Cert-Manager (TLS терминация).
-- [ ] **Backup (Data):** Интеграция Velero для бэкапа состояния K8s и данных PVC напрямую в TrueNAS S3.
+## 🚀 Phase 3: Connectivity & CI/CD (Upcoming)
+- [ ] **Ingress Nginx:** Установка контроллера для управления трафиком по домену.
+- [ ] **Cert-Manager:** Автоматическое получение SSL сертификатов Let's Encrypt.
+- [ ] **Headscale:** Развертывание собственной Mesh-сети (Self-hosted Tailscale).
+- [ ] **GitLab CI/CD:** Настройка раннеров для авто-деплоя.
 
-## 📅 Phase 4: AI & Автоматизация
-- [ ] Развертывание GitLab Server (Libvirt VM).
-- [ ] Ollama + DeepSeek-R1 (Проброс GPU).
-- [ ] Настройка автоматического бэкапа инфраструктуры по расписанию (cron/systemd-timer) без ручного ввода паролей.
-
-## ✅ Технический долг (Tech Debt) & Рефакторинг (ЗАКРЫТО)
-- [x] **Makefile:** Разбит на логические цели (`make apps`, `make backup`, `make restore`). Внедрен единый пульт управления кластером и бэкапами.
-- [x] **Синхронизация деплоя:** Жесткие `sleep` заменены на `kubectl wait` для API, нод и подов CSI. Кластер поднимается стабильно с первого раза.
+## 🧠 Phase 4: Advanced Tech (Long-term)
+- [ ] **GPU Passthrough:** Проброс видеокарт в K8s для Ollama и DeepSeek-R1.
+- [ ] **External Secrets:** Синхронизация паролей из Vault в K8s Secrets.
+- [ ] **Local AI:** Интеграция LLM в домашнюю автоматизацию.
