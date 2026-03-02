@@ -11,7 +11,7 @@ SSH_USER = km
 ANSIBLE_SECRETS = $(ANSIBLE_DIR)/00_generate_secrets.yml
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all down apps infra-apps infra-k8s status watch nodes pods logs shell pvc events clean-failed help vm-status
+.PHONY: all down status watch nodes pods logs shell pvc events clean-failed help infra-apps infra-k8s vm-status vm-start vm-stop vm-kill
 
 # --- ОСНОВНЫЕ ЦИКЛЫ ---
 
@@ -80,11 +80,32 @@ infra-apps: ## Развернуть защищенный слой Apps (GitLab)
 infra-k8s: ## Развернуть динамический слой K8s (Master + Workers)
 	cd $(TF_K8S_DIR) && terraform init && terraform apply -auto-approve
 
-vm-status: ## Состояние ВМ на гипервизорах (virsh)
+# --- УПРАВЛЕНИЕ ГИПЕРВИЗОРАМИ (ТВОИ ЛЮБИМЫЕ) ---
+
+vm-status: ## Статус всех ВМ на гипервизорах
 	@for host in $(HYPERVISORS); do echo "--- $$host ---"; ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; done
 
+vm-start: ## Включить все ВМ кластера и GitLab (кроме Windows)
+	@for host in $(HYPERVISORS); do \
+	  echo ">>> Starting VMs on $$host..."; \
+	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v win | xargs -r -I {} virsh -c qemu:///system start {}"; \
+	done
+
+vm-stop: ## Мягкое выключение всех нод (кроме Windows)
+	@for host in $(HYPERVISORS); do \
+	  echo ">>> Stopping VMs on $$host..."; \
+	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
+	done
+
+vm-kill: ## ЖЕСТКОЕ выключение нод (Destroy)
+	@echo -n "⚠️ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
+	@for host in $(HYPERVISORS); do \
+	  echo ">>> KILLING VMs on $$host..."; \
+	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
+	done
+
 confirm:
-	@read -p "Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
+	@read -p "⚠️ Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
 
 help: ## Показать это меню помощи
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
