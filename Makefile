@@ -1,5 +1,6 @@
 # --- ПЕРЕМЕННЫЕ ПУТЕЙ ---
-TF_DIR = terraform
+TF_APPS_DIR = terraform/apps
+TF_K8S_DIR = terraform/k8s
 ANSIBLE_DIR = ansible
 INVENTORY = $(ANSIBLE_DIR)/inventory/generated_hosts.ini
 APPS_DIR = kubernetes/apps
@@ -7,147 +8,83 @@ KUBECONFIG_PATH = $(HOME)/.kube/config
 HYPERVISORS = 192.168.1.22 192.168.1.23
 SSH_USER = km
 
-# Пути к плейбукам безопасности и бэкапа
 ANSIBLE_SECRETS = $(ANSIBLE_DIR)/00_generate_secrets.yml
-ANSIBLE_BACKUP = $(ANSIBLE_DIR)/99_s3_backup.yml
-
-# Переменные окружения для Restic (чтобы не вводить экспорт вручную)
-R_ENV = source ./.restic_env
-
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all down apps clean-pvc help backup generate-secrets backup-list backup-ls backup-check vm-status vm-start vm-stop
+.PHONY: all down apps infra-apps infra-k8s status watch nodes pods logs shell pvc events clean-failed help vm-status
 
-# --- ОСНОВНОЙ ЦИКЛ ---
+# --- ОСНОВНЫЕ ЦИКЛЫ ---
 
-all: ## 1. Инфра, 2. Секреты, 3. Кубер, 4. Хранилище, 5. Аппсы
-	@echo "--- Starting Terraform ---"
-	cd $(TF_DIR) && terraform init && terraform apply -auto-approve
-
-	@echo "--- Generating Secrets from Vault ---"
-	ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
-
-	@echo "--- Waiting for SSH (30s) ---"
+all: infra-apps infra-k8s ## Полный разворот: Инфра -> Секреты -> Кубер -> Аппсы
+	@ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
 	sleep 30
-
-	@echo "--- Running Ansible Playbooks ---"
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/01_prepare.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_install_k8s.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_init_master.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_join_workers.yml
-
-	@echo "--- Deploying Network (Flannel) ---"
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=60s
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-
-	@echo "--- Waiting for Kubernetes API ---"
-	@until KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes > /dev/null 2>&1; do sleep 2; echo "Waiting for API..."; done
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=300s
-
-	@echo "--- Deploying MetalLB ---"
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.3/config/manifests/metallb-native.yaml
 	@sleep 20
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f kubernetes/main/metallb-config.yaml
-
-	@echo "--- Deploying Democratic CSI (TrueNAS Storage) ---"
-	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi ./democratic-csi \
-		--namespace democratic-csi \
-		--create-namespace \
-		-f zfs-iscsi-base.yaml \
-		-f zfs-iscsi-prod.yaml \
-		-f zfs-iscsi-secrets.yaml
-
-	@echo "--- Cleaning up temporary secrets ---"
-	rm -f zfs-iscsi-secrets.yaml
-
-	@echo "--- Cluster is READY! Deploying applications ---"
+	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi ./democratic-csi --namespace democratic-csi --create-namespace -f zfs-iscsi-base.yaml -f zfs-iscsi-prod.yaml -f zfs-iscsi-secrets.yaml
 	KUBECONFIG=$(KUBECONFIG_PATH) $(MAKE) apps
 
-# --- БЭКАПЫ (RESTIC) ---
+down: confirm ## Полное удаление ресурсов K8s и инфраструктуры
+	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=30s
+	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=30s
+	cd $(TF_K8S_DIR) && terraform destroy -auto-approve
+	cd $(TF_APPS_DIR) && terraform destroy -auto-approve
 
-backup: ## Запустить бэкап проекта в S3
-	@echo "--- Starting Restic Backup ---"
-	ansible-playbook $(ANSIBLE_BACKUP) -K --ask-vault-pass
+# --- МОНИТОРИНГ ---
 
-backup-list: ## Посмотреть список всех снимков в S3
-	@$(R_ENV) && restic snapshots
+status: ## Сводный отчет: ноды, поды, сервисы (IP от MetalLB) и диски
+	@echo "--- NODES ---"
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
+	@echo "\n--- PODS ---"
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -A
+	@echo "\n--- STORAGE (PVC) ---"
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pvc -A
 
-backup-ls: ## Посмотреть файлы внутри последнего бэкапа
-	@$(R_ENV) && restic ls latest
+watch: ## Живой мониторинг ресурсов в реальном времени
+	watch -n 2 "KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes,pods,svc,pvc -A"
 
-backup-check: ## Проверить целостность данных в S3
-	@$(R_ENV) && restic check
+# --- УПРАВЛЕНИЕ K8S ---
 
-# --- УПРАВЛЕНИЕ ---
+nodes: ## Список всех нод кластера
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
 
-generate-secrets: ## Только создать файл секретов для проверки
-	ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
+pods: ## Список всех подов во всех неймспейсах
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -A
 
-apps: ## Деплой приложений
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(APPS_DIR)/
+logs: ## Посмотреть логи приложения (usage: make logs app=nextcloud)
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl logs -f $$(KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -l app=$(app) -o name | head -n 1)
 
-down: confirm ## Удалить ресурсы K8s и виртуалки
-	@echo "--- Removing K8s resources ---"
-	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=60s
-	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=60s
-	@echo "--- Terraform Destroy ---"
-	cd $(TF_DIR) && terraform destroy -auto-approve
-	rm -f ./join_command.txt $(KUBECONFIG_PATH) zfs-iscsi-secrets.yaml
+shell: ## Зайти в консоль пода (usage: make shell app=jellyfin)
+	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl exec -it $$(KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -l app=$(app) -o name | head -n 1) -- /bin/bash
 
-# --- Информационные команды ---
-vm-status: ## Статус всех виртуалок на гипервизорах
-	@for host in $(HYPERVISORS); do \
-		echo "--- Status for $$host ---"; \
-		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; \
-	done
+pvc: ## Проверить состояние дисков TrueNAS iSCSI
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pvc,pv -A
 
-# --- Управление питанием ---
-vm-start: ## Включить все ВМ кроме Windows
-	@for host in $(HYPERVISORS); do \
-		echo ">>> Starting non-win VMs on $$host..."; \
-		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system start {}"; \
-	done
+events: ## Последние события в кластере (дебаг)
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get events --sort-by=.lastTimestamp -A
 
-vm-stop: ## Мягкое выключение всех ВМ кроме Windows
-	@for host in $(HYPERVISORS); do \
-		echo ">>> Stopping non-win VMs on $$host..."; \
-		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
-	done
+clean-failed: ## Удалить поды со статусом Failed или Evicted
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pods --field-selector status.phase=Failed -A
 
-vm-kill: ## ЖЕСТКОЕ выключение (Destroy) с подтверждением
-	@echo -n "⚠️  WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
-	@for host in $(HYPERVISORS); do \
-		echo ">>> KILLING non-win VMs on $$host..."; \
-		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v 'win' | sed '/^$$/d' | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
-	done
+# --- ИНФРАСТРУКТУРА ---
 
-clean-pvc: ## Очистить ZFS на TrueNAS
-	ssh km@192.168.1.30 "sudo zfs destroy -r NVME/k8s-vols/data && sudo zfs create NVME/k8s-vols/data"
+infra-apps: ## Развернуть защищенный слой Apps (GitLab)
+	cd $(TF_APPS_DIR) && terraform init && terraform apply -auto-approve
+
+infra-k8s: ## Развернуть динамический слой K8s (Master + Workers)
+	cd $(TF_K8S_DIR) && terraform init && terraform apply -auto-approve
+
+vm-status: ## Состояние ВМ на гипервизорах (virsh)
+	@for host in $(HYPERVISORS); do echo "--- $$host ---"; ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; done
 
 confirm:
-	@read -p "⚠️ УВЕРЕНЫ? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
+	@read -p "Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
 
-help: ## Показать это меню
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
-
-# ==========================================
-# --- ИНФОРМАЦИОННЫЕ КОМАНДЫ (СЕТЬ) ---
-# ==========================================
-
-vm-ips: ## Показать IP всех узлов из инвентаря Terraform
-	@echo "--- IP-адреса из инвентаря ---"
-	@if [ -f $(INVENTORY) ]; then \
-		cat $(INVENTORY) | grep 'ansible_host' | awk '{print $$1 " : " $$2}' | sed 's/ansible_host=//'; \
-	else \
-		echo "Инвентарь пуст или Terraform не запускался."; \
-	fi
-
-live-ips: ## Найти реальные IP через ARP (обход моста br0)
-	@for host in $(HYPERVISORS); do \
-		echo "--- Хост: $$host ---"; \
-		ssh -o StrictHostKeyChecking=no $(SSH_USER)@$$host \
-		"for dom in \$$(virsh -c qemu:///system list --name --state-running); do \
-			mac=\$$(virsh -c qemu:///system dumpxml \$$dom | grep 'mac address' | head -1 | cut -d\' -f2); \
-			ip=\$$(ip neigh | grep \$$mac | awk '{print \$$1}'); \
-			printf \"%-15s : %s\n\" \"\$$dom\" \"\$${ip:-Не найден в ARP}\"; \
-		done"; \
-	done
+help: ## Показать это меню помощи
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)

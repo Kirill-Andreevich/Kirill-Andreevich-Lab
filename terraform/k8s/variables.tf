@@ -9,7 +9,6 @@ variable "base_image_url" {
 }
 
 variable "ips" {
-  type = map(any)
   default = {
     master          = "192.168.1.100"
     gitlab          = "192.168.1.101"

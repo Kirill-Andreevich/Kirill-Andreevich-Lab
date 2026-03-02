@@ -1,0 +1,605 @@
+{
+  "version": 4,
+  "terraform_version": "1.14.5",
+  "serial": 896,
+  "lineage": "be03bd97-5db5-c6fa-66c3-0992294b0baf",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "libvirt_cloudinit_disk",
+      "name": "init_gitlab",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].workstation",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "/var/lib/libvirt/images/init-gitlab.iso;a0bd7145-0273-4e5c-9927-42dbe024e7dc",
+            "meta_data": "",
+            "name": "init-gitlab.iso",
+            "network_config": "version: 2\nethernets:\n  id0:\n    match:\n      name: en*\n    dhcp4: false\n    addresses:\n      - 192.168.1.101/24\n    routes:\n      - to: default\n        via: 192.168.1.1\n    nameservers:\n      addresses: [192.168.1.1, 8.8.8.8]\n",
+            "pool": "default",
+            "user_data": "#cloud-config\nusers:\n  - name: km\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh-authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFuUNjKZX6TFQF0qwQFz+NREEl779Ew5F6Q88BGbw9rr km@km\n\npackages:\n  - qemu-guest-agent\n  - open-iscsi\n  - nfs-common\nruncmd:\n  - [ systemctl, enable, --now, qemu-guest-agent ]\n  - [ systemctl, enable, --now, iscsid ]\n  - mkdir -p /run/flannel\n  - |\n    cat \u003c\u003cFLN \u003e /run/flannel/subnet.env\n    FLANNEL_NETWORK=10.244.0.0/16\n    FLANNEL_SUBNET=10.244.1.1/24\n    FLANNEL_MTU=1450\n    FLANNEL_IPMASQ=true\n    FLN\n"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_cloudinit_disk",
+      "name": "init_master",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].workstation",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "/var/lib/libvirt/images/init-master.iso;bb446c23-2348-4b3e-9cc0-0626ff843cc0",
+            "meta_data": "",
+            "name": "init-master.iso",
+            "network_config": "version: 2\nethernets:\n  id0:\n    match:\n      name: en*\n    dhcp4: false\n    addresses:\n      - 192.168.1.100/24\n    routes:\n      - to: default\n        via: 192.168.1.1\n    nameservers:\n      addresses: [192.168.1.1, 8.8.8.8]\n",
+            "pool": "default",
+            "user_data": "#cloud-config\nhostname: k8s-master\n#cloud-config\nusers:\n  - name: km\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh-authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFuUNjKZX6TFQF0qwQFz+NREEl779Ew5F6Q88BGbw9rr km@km\n\npackages:\n  - qemu-guest-agent\n  - open-iscsi\n  - nfs-common\nruncmd:\n  - [ systemctl, enable, --now, qemu-guest-agent ]\n  - [ systemctl, enable, --now, iscsid ]\n  - mkdir -p /run/flannel\n  - |\n    cat \u003c\u003cFLN \u003e /run/flannel/subnet.env\n    FLANNEL_NETWORK=10.244.0.0/16\n    FLANNEL_SUBNET=10.244.1.1/24\n    FLANNEL_MTU=1450\n    FLANNEL_IPMASQ=true\n    FLN\n\n"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_cloudinit_disk",
+      "name": "init_worker",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].compute",
+      "instances": [
+        {
+          "index_key": 0,
+          "schema_version": 0,
+          "attributes": {
+            "id": "/var/lib/libvirt/images/init-worker-0.iso;a1b275be-e894-4507-b26d-6cc04c3869e7",
+            "meta_data": "",
+            "name": "init-worker-0.iso",
+            "network_config": "version: 2\nethernets:\n  id0:\n    match:\n      name: en*\n    dhcp4: false\n    addresses:\n      - 192.168.1.110/24\n    routes:\n      - to: default\n        via: 192.168.1.1\n    nameservers:\n      addresses: [192.168.1.1, 8.8.8.8]\n",
+            "pool": "default",
+            "user_data": "#cloud-config\nusers:\n  - name: km\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh-authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFuUNjKZX6TFQF0qwQFz+NREEl779Ew5F6Q88BGbw9rr km@km\n\npackages:\n  - qemu-guest-agent\n  - open-iscsi\n  - nfs-common\nruncmd:\n  - [ systemctl, enable, --now, qemu-guest-agent ]\n  - [ systemctl, enable, --now, iscsid ]\n  - mkdir -p /run/flannel\n  - |\n    cat \u003c\u003cFLN \u003e /run/flannel/subnet.env\n    FLANNEL_NETWORK=10.244.0.0/16\n    FLANNEL_SUBNET=10.244.1.1/24\n    FLANNEL_MTU=1450\n    FLANNEL_IPMASQ=true\n    FLN\n"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        },
+        {
+          "index_key": 1,
+          "schema_version": 0,
+          "attributes": {
+            "id": "/var/lib/libvirt/images/init-worker-1.iso;b2f1d5ea-8189-47fc-aad5-985c42c74164",
+            "meta_data": "",
+            "name": "init-worker-1.iso",
+            "network_config": "version: 2\nethernets:\n  id0:\n    match:\n      name: en*\n    dhcp4: false\n    addresses:\n      - 192.168.1.111/24\n    routes:\n      - to: default\n        via: 192.168.1.1\n    nameservers:\n      addresses: [192.168.1.1, 8.8.8.8]\n",
+            "pool": "default",
+            "user_data": "#cloud-config\nusers:\n  - name: km\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh-authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFuUNjKZX6TFQF0qwQFz+NREEl779Ew5F6Q88BGbw9rr km@km\n\npackages:\n  - qemu-guest-agent\n  - open-iscsi\n  - nfs-common\nruncmd:\n  - [ systemctl, enable, --now, qemu-guest-agent ]\n  - [ systemctl, enable, --now, iscsid ]\n  - mkdir -p /run/flannel\n  - |\n    cat \u003c\u003cFLN \u003e /run/flannel/subnet.env\n    FLANNEL_NETWORK=10.244.0.0/16\n    FLANNEL_SUBNET=10.244.1.1/24\n    FLANNEL_MTU=1450\n    FLANNEL_IPMASQ=true\n    FLN\n"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        },
+        {
+          "index_key": 2,
+          "schema_version": 0,
+          "attributes": {
+            "id": "/var/lib/libvirt/images/init-worker-2.iso;8a8dd610-5107-42a4-a9cd-f22a084c0fb8",
+            "meta_data": "",
+            "name": "init-worker-2.iso",
+            "network_config": "version: 2\nethernets:\n  id0:\n    match:\n      name: en*\n    dhcp4: false\n    addresses:\n      - 192.168.1.112/24\n    routes:\n      - to: default\n        via: 192.168.1.1\n    nameservers:\n      addresses: [192.168.1.1, 8.8.8.8]\n",
+            "pool": "default",
+            "user_data": "#cloud-config\nusers:\n  - name: km\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    ssh-authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFuUNjKZX6TFQF0qwQFz+NREEl779Ew5F6Q88BGbw9rr km@km\n\npackages:\n  - qemu-guest-agent\n  - open-iscsi\n  - nfs-common\nruncmd:\n  - [ systemctl, enable, --now, qemu-guest-agent ]\n  - [ systemctl, enable, --now, iscsid ]\n  - mkdir -p /run/flannel\n  - |\n    cat \u003c\u003cFLN \u003e /run/flannel/subnet.env\n    FLANNEL_NETWORK=10.244.0.0/16\n    FLANNEL_SUBNET=10.244.1.1/24\n    FLANNEL_MTU=1450\n    FLANNEL_IPMASQ=true\n    FLN\n"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_domain",
+      "name": "k8s_master",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].workstation",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "arch": "x86_64",
+            "autostart": false,
+            "boot_device": [],
+            "cloudinit": "/var/lib/libvirt/images/init-master.iso;bb446c23-2348-4b3e-9cc0-0626ff843cc0",
+            "cmdline": [],
+            "console": [],
+            "coreos_ignition": null,
+            "cpu": [
+              {
+                "mode": "host-passthrough"
+              }
+            ],
+            "description": "",
+            "disk": [
+              {
+                "block_device": "",
+                "file": "",
+                "scsi": false,
+                "url": "",
+                "volume_id": "/var/lib/libvirt/images/k8s-master.qcow2",
+                "wwn": ""
+              }
+            ],
+            "emulator": "/usr/bin/qemu-system-x86_64",
+            "filesystem": [],
+            "firmware": null,
+            "fw_cfg_name": "opt/com.coreos/config",
+            "graphics": [],
+            "id": "8a81688d-d28f-4575-8166-6b61048e82f7",
+            "initrd": "",
+            "kernel": "",
+            "machine": "pc",
+            "memory": 8192,
+            "metadata": null,
+            "name": "k8s-master",
+            "network_interface": [
+              {
+                "addresses": [
+                  "192.168.1.100"
+                ],
+                "bridge": "br0",
+                "hostname": "",
+                "mac": "52:54:00:7A:A0:9C",
+                "macvtap": "",
+                "network_id": "",
+                "network_name": "",
+                "passthrough": "",
+                "vepa": "",
+                "wait_for_lease": false
+              }
+            ],
+            "nvram": [],
+            "qemu_agent": true,
+            "running": true,
+            "timeouts": null,
+            "tpm": [],
+            "vcpu": 4,
+            "video": [],
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDB9fQ==",
+          "dependencies": [
+            "libvirt_cloudinit_disk.init_master",
+            "libvirt_volume.base_workstation",
+            "libvirt_volume.master_disk"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_domain",
+      "name": "k8s_worker",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].compute",
+      "instances": [
+        {
+          "index_key": 0,
+          "schema_version": 0,
+          "attributes": {
+            "arch": "x86_64",
+            "autostart": false,
+            "boot_device": [],
+            "cloudinit": "/var/lib/libvirt/images/init-worker-0.iso;a1b275be-e894-4507-b26d-6cc04c3869e7",
+            "cmdline": [],
+            "console": [],
+            "coreos_ignition": null,
+            "cpu": [
+              {
+                "mode": "host-passthrough"
+              }
+            ],
+            "description": "",
+            "disk": [
+              {
+                "block_device": "",
+                "file": "",
+                "scsi": false,
+                "url": "",
+                "volume_id": "/var/lib/libvirt/images/k8s-worker-0.qcow2",
+                "wwn": ""
+              }
+            ],
+            "emulator": "/usr/bin/qemu-system-x86_64",
+            "filesystem": [],
+            "firmware": null,
+            "fw_cfg_name": "opt/com.coreos/config",
+            "graphics": [],
+            "id": "7709b180-8c7a-45fc-b7de-7035fe00d269",
+            "initrd": "",
+            "kernel": "",
+            "machine": "pc",
+            "memory": 12288,
+            "metadata": null,
+            "name": "k8s-worker-0",
+            "network_interface": [
+              {
+                "addresses": [
+                  "192.168.1.110"
+                ],
+                "bridge": "br0",
+                "hostname": "",
+                "mac": "52:54:00:12:04:21",
+                "macvtap": "",
+                "network_id": "",
+                "network_name": "",
+                "passthrough": "",
+                "vepa": "",
+                "wait_for_lease": false
+              }
+            ],
+            "nvram": [],
+            "qemu_agent": true,
+            "running": true,
+            "timeouts": null,
+            "tpm": [],
+            "vcpu": 6,
+            "video": [],
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDB9fQ==",
+          "dependencies": [
+            "libvirt_cloudinit_disk.init_worker",
+            "libvirt_volume.base_compute",
+            "libvirt_volume.worker_disk"
+          ]
+        },
+        {
+          "index_key": 1,
+          "schema_version": 0,
+          "attributes": {
+            "arch": "x86_64",
+            "autostart": false,
+            "boot_device": [],
+            "cloudinit": "/var/lib/libvirt/images/init-worker-1.iso;b2f1d5ea-8189-47fc-aad5-985c42c74164",
+            "cmdline": [],
+            "console": [],
+            "coreos_ignition": null,
+            "cpu": [
+              {
+                "mode": "host-passthrough"
+              }
+            ],
+            "description": "",
+            "disk": [
+              {
+                "block_device": "",
+                "file": "",
+                "scsi": false,
+                "url": "",
+                "volume_id": "/var/lib/libvirt/images/k8s-worker-1.qcow2",
+                "wwn": ""
+              }
+            ],
+            "emulator": "/usr/bin/qemu-system-x86_64",
+            "filesystem": [],
+            "firmware": null,
+            "fw_cfg_name": "opt/com.coreos/config",
+            "graphics": [],
+            "id": "6f6832d0-4034-4d37-afbb-282250c92197",
+            "initrd": "",
+            "kernel": "",
+            "machine": "pc",
+            "memory": 12288,
+            "metadata": null,
+            "name": "k8s-worker-1",
+            "network_interface": [
+              {
+                "addresses": [
+                  "192.168.1.111"
+                ],
+                "bridge": "br0",
+                "hostname": "",
+                "mac": "52:54:00:32:90:D4",
+                "macvtap": "",
+                "network_id": "",
+                "network_name": "",
+                "passthrough": "",
+                "vepa": "",
+                "wait_for_lease": false
+              }
+            ],
+            "nvram": [],
+            "qemu_agent": true,
+            "running": true,
+            "timeouts": null,
+            "tpm": [],
+            "vcpu": 6,
+            "video": [],
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDB9fQ==",
+          "dependencies": [
+            "libvirt_cloudinit_disk.init_worker",
+            "libvirt_volume.base_compute",
+            "libvirt_volume.worker_disk"
+          ]
+        },
+        {
+          "index_key": 2,
+          "schema_version": 0,
+          "attributes": {
+            "arch": "x86_64",
+            "autostart": false,
+            "boot_device": [],
+            "cloudinit": "/var/lib/libvirt/images/init-worker-2.iso;8a8dd610-5107-42a4-a9cd-f22a084c0fb8",
+            "cmdline": [],
+            "console": [],
+            "coreos_ignition": null,
+            "cpu": [
+              {
+                "mode": "host-passthrough"
+              }
+            ],
+            "description": "",
+            "disk": [
+              {
+                "block_device": "",
+                "file": "",
+                "scsi": false,
+                "url": "",
+                "volume_id": "/var/lib/libvirt/images/k8s-worker-2.qcow2",
+                "wwn": ""
+              }
+            ],
+            "emulator": "/usr/bin/qemu-system-x86_64",
+            "filesystem": [],
+            "firmware": null,
+            "fw_cfg_name": "opt/com.coreos/config",
+            "graphics": [],
+            "id": "dbc80b9e-1026-47ae-bb9c-16628337c9e2",
+            "initrd": "",
+            "kernel": "",
+            "machine": "pc",
+            "memory": 12288,
+            "metadata": null,
+            "name": "k8s-worker-2",
+            "network_interface": [
+              {
+                "addresses": [
+                  "192.168.1.112"
+                ],
+                "bridge": "br0",
+                "hostname": "",
+                "mac": "52:54:00:8E:6C:10",
+                "macvtap": "",
+                "network_id": "",
+                "network_name": "",
+                "passthrough": "",
+                "vepa": "",
+                "wait_for_lease": false
+              }
+            ],
+            "nvram": [],
+            "qemu_agent": true,
+            "running": true,
+            "timeouts": null,
+            "tpm": [],
+            "vcpu": 6,
+            "video": [],
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDB9fQ==",
+          "dependencies": [
+            "libvirt_cloudinit_disk.init_worker",
+            "libvirt_volume.base_compute",
+            "libvirt_volume.worker_disk"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_volume",
+      "name": "base_compute",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].compute",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": null,
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "name": "ubuntu-24.04-base.qcow2",
+            "pool": "default",
+            "size": 3758096384,
+            "source": "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img",
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_volume",
+      "name": "base_workstation",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].workstation",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": null,
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "name": "ubuntu-24.04-base.qcow2",
+            "pool": "default",
+            "size": 3758096384,
+            "source": "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img",
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA=="
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_volume",
+      "name": "master_disk",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].workstation",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/k8s-master.qcow2",
+            "name": "k8s-master.qcow2",
+            "pool": "default",
+            "size": 42949672960,
+            "source": null,
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "libvirt_volume.base_workstation"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "libvirt_volume",
+      "name": "worker_disk",
+      "provider": "provider[\"registry.terraform.io/dmacvicar/libvirt\"].compute",
+      "instances": [
+        {
+          "index_key": 0,
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/k8s-worker-0.qcow2",
+            "name": "k8s-worker-0.qcow2",
+            "pool": "default",
+            "size": 42949672960,
+            "source": null,
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "libvirt_volume.base_compute"
+          ]
+        },
+        {
+          "index_key": 1,
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/k8s-worker-1.qcow2",
+            "name": "k8s-worker-1.qcow2",
+            "pool": "default",
+            "size": 42949672960,
+            "source": null,
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "libvirt_volume.base_compute"
+          ]
+        },
+        {
+          "index_key": 2,
+          "schema_version": 0,
+          "attributes": {
+            "base_volume_id": "/var/lib/libvirt/images/ubuntu-24.04-base.qcow2",
+            "base_volume_name": null,
+            "base_volume_pool": null,
+            "format": "qcow2",
+            "id": "/var/lib/libvirt/images/k8s-worker-2.qcow2",
+            "name": "k8s-worker-2.qcow2",
+            "pool": "default",
+            "size": 42949672960,
+            "source": null,
+            "xml": []
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "private": "bnVsbA==",
+          "dependencies": [
+            "libvirt_volume.base_compute"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "local_file",
+      "name": "ansible_inventory",
+      "provider": "provider[\"registry.terraform.io/hashicorp/local\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "content": "[k8s_master]\nk8s-master ansible_host=192.168.1.100\n\n[k8s_workers]\nk8s-worker-0 ansible_host=192.168.1.110\nk8s-worker-1 ansible_host=192.168.1.111\nk8s-worker-2 ansible_host=192.168.1.112\n\n[gitlab]\ngitlab-srv ansible_host=192.168.1.101\n\n[all:vars]\nansible_user=km\nansible_ssh_private_key_file=~/.ssh/id_ed25519\n",
+            "content_base64": null,
+            "content_base64sha256": "TMkmCUuSVSRJtqsOpbuTiSoyOtQgKAMQg2xp8h5xhC8=",
+            "content_base64sha512": "bzpffJQL+0HNW2fRYMeMV3CdSyB6Pqy2YUwrK80o5O0a435btcfaJSE0hkKh/myW6NVNBdMIpL2o7R7xo4KaKw==",
+            "content_md5": "ab1244635a1d998e3a77c002b8c01e61",
+            "content_sha1": "2eca07558861ee8bf105904a4cae56fac168a544",
+            "content_sha256": "4cc926094b92552449b6ab0ea5bb93892a323ad420280310836c69f21e71842f",
+            "content_sha512": "6f3a5f7c940bfb41cd5b67d160c78c57709d4b207a3eacb6614c2b2bcd28e4ed1ae37e5bb5c7da2521348642a1fe6c96e8d54d05d308a4bda8ed1ef1a3829a2b",
+            "directory_permission": "0777",
+            "file_permission": "0777",
+            "filename": "../ansible/inventory/generated_hosts.ini",
+            "id": "2eca07558861ee8bf105904a4cae56fac168a544",
+            "sensitive_content": null,
+            "source": null
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "sensitive_content"
+              }
+            ]
+          ],
+          "identity_schema_version": 0
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
