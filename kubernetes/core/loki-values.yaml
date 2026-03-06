@@ -1,0 +1,75 @@
+loki:
+  enabled: true
+  service:
+    type: LoadBalancer
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  # --- СЕКЦИЯ АЛЕРТОВ (RULER) ---
+  ruler:
+    enabled: true
+    alertmanager_url: http://monitoring-kube-prometheus-alertmanager.monitoring.svc:9093
+    external_url: http://192.168.1.206:3100
+    storage:
+      type: local
+      local:
+        directory: /data/loki/rules
+    rule_path: /data/loki/rules-temp
+    ring:
+      kvstore:
+        store: inmemory
+    
+    # Сами правила алертов
+    groups:
+      - name: iron-logs-alerts
+        rules:
+          - alert: IronHostErrorDetected
+            expr: |
+              count_over_time({host=~"ryzen-.*"} |= "error" [5m]) > 0
+            for: 1m
+            labels:
+              severity: critical
+              source: iron_logs
+            annotations:
+              summary: "🚨 Ошибка на железном хосте {{ $labels.host }}"
+              description: "В логах {{ $labels.host }} обнаружено слово 'error'. Сходи проверь journalctl, пока всё не упало!"
+
+  config:
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/cache
+        shared_store: filesystem
+      filesystem:
+        directory: /data/loki/chunks
+    schema_config:
+      configs:
+        - from: "2020-10-24"
+          index:
+            period: 24h
+            prefix: index_
+          object_store: filesystem
+          schema: v11
+          store: boltdb-shipper
+
+promtail:
+  enabled: true
+  config:
+    lokiAddress: http://loki:3100/loki/api/v1/push
+    snippets:
+      extraScrapeConfigs: |
+        - job_name: syslog
+          syslog:
+            listen_address: 0.0.0.0:1514
+            idle_timeout: 60s
+            label_structured_data: yes
+            labels:
+              job: syslog
+          relabel_configs:
+            - source_labels: ['__syslog_message_hostname']
+              target_label: 'host'

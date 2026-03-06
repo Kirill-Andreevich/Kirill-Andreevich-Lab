@@ -1,0 +1,6 @@
+.git
+venv
+.terraform
+*.tfstate.backup
+archive
+*.tgz

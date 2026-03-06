@@ -70,3 +70,6 @@ __pycache__/
 # ==========================================
 docs/
 *.txt
+kubernetes/main/alertmanager-values-secrets.yaml
+*.kubeconfig
+_archive/

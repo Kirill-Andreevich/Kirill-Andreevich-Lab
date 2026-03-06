@@ -1,40 +1,57 @@
-# 🛠 Kirill-Andreevich-Lab: Control Center
+# Enterprise Homelab: Infrastructure as Code & Kubernetes
 
-Добро пожаловать в репозиторий моей домашней лаборатории. Проект использует подход **Infrastructure-as-Code (IaC)** для развертывания кластера Kubernetes поверх KVM/Libvirt с внешним iSCSI-хранилищем на базе TrueNAS.
+Данный репозиторий содержит полную конфигурацию Infrastructure-as-Code (IaC) для управления локальным вычислительным кластером и системой хранения данных. Проект демонстрирует применение Enterprise-практик (Zero-Touch Provisioning, GitOps, CSI) в рамках bare-metal инфраструктуры.
 
-## 🏗 Архитектура
-* **Compute Node (192.168.1.22):** AMD Ryzen 9950X — хостинг worker-нод Kubernetes.
-* **Workstation (192.168.1.23):** AMD Ryzen 9800X — хостинг master-ноды и GitLab.
-* **Storage (192.168.1.30):** TrueNAS Core — ZFS-пулы, раздача iSCSI (Democratic CSI).
-* **Gateway (192.168.1.1):** OpenWrt — маршрутизация, DHCP, статические привязки MAC-IP.
+## 1. Вычислительные мощности (Compute & Storage)
 
-## 🌐 Сетевой план (IPAM)
-| Группа | IP / Диапазон | Назначение |
-| :--- | :--- | :--- |
-| **Infra** | `192.168.1.1` | OpenWrt Router |
-| **Servers**| `192.168.1.22-23` | Гипервизоры (9950X, 9800X) |
-| **Storage**| `192.168.1.30` | TrueNAS Core |
-| **K8s Nodes** | `192.168.1.100` | Master Node |
-| **K8s Nodes** | `192.168.1.111+` | Worker Nodes |
-| **MetalLB**| `192.168.1.200-239`| Пул для LoadBalancer сервисов K8s |
-| **DHCP** | `192.168.1.240-254`| Динамика для гостевых/новых устройств |
+Архитектура стенда строго разделяет вычислительный слой (Compute) и слой хранения данных (Storage), обеспечивая максимальную производительность для кластера Kubernetes.
 
-## 🚀 Быстрый старт (Makefile)
-Управление всем жизненным циклом лабы осуществляется через `make`:
-* `make tf-apply` — Создать виртуальные машины (Terraform).
-* `make all` — Установить ОС, K8s, Flannel и собрать кластер (Ansible).
-* `make k8s-config` — Скачать конфиг `kubectl` на локальную машину.
-* `make apps` — Задеплоить манифесты MetalLB и пользовательских приложений.
-* `make tf-destroy` — Уничтожить виртуалки.
+| Узел | Роль | OS | CPU | RAM | GPU | Дисковая подсистема |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Node .22** | Compute / KVM | EndeavourOS (Linux 6.18) | AMD Ryzen 9 9950X3D | 64 GB | NVIDIA RTX 4090 | 2TB NVMe (BTRFS) |
+| **Node .23** | Workstation / KVM | Manjaro (Linux 6.18) | AMD Ryzen 7 9800X3D | 32 GB | AMD RX 9070 XT | 2TB NVMe (BTRFS) |
+| **Node .30** | Storage / iSCSI | TrueNAS SCALE 25.10.1 | AMD Ryzen 7 9700X | 32 GB | - | ZFS: NVME & RAID5 |
 
-## 📚 Шпаргалка администратора
-**Kubernetes:**
-* `kubectl get nodes -o wide` — Статус и IP-адреса узлов.
-* `kubectl get svc -A` — Проверить выданные MetalLB внешние IP-адреса.
-* `kubectl get pods -A -w` — Наблюдать за поднятием подов в реальном времени.
+*Примечание: Вычислительные узлы используют KVM/libvirt. Конфигурация виртуальных машин Terraform (`host-passthrough`) позволяет гостевым ОС получать прямой доступ к 3D V-Cache процессоров AMD.*
 
-**Storage / iSCSI:**
-* `iscsiadm -m discovery -t sendtargets -p 192.168.1.30` — Поиск таргетов.
+## 2. Сетевая инфраструктура и Маршрутизация
 
-**Бэкап конфигурации:**
-* `./generate_blob.sh` — Собрать чистый конфиг (без venv и archive) и отправить на сервер .22.
+Сетевой слой управляется маршрутизатором **Xiaomi AX3600** под управлением **OpenWrt 24.10.3** (Linux 6.6.104).
+
+*   **DHCP & IPAM:** Служба `dnsmasq` обеспечивает статическую привязку IP-адресов по MAC-адресам для базовой инфраструктуры: `compute-9950x` (192.168.1.22), `workstation-9800x` (192.168.1.23) и `truenas-core` (192.168.1.30).
+*   **Load Balancing:** Внутри Kubernetes маршрутизация трафика обеспечивается контроллером **MetalLB** с выделенным пулом адресов L2 (`192.168.1.200-192.168.1.239`).
+*   **Firewall & DNAT:** Настроены правила проброса портов (Port Forwarding) из WAN для RDP (3389), RustDesk (21115-21119) и балансировщика Nginx Proxy Manager (80/443 -> 30021/30022).
+
+## 3. Стек технологий
+
+*   **Infrastructure as Code:** Terraform (управление KVM-доменами).
+*   **Configuration Management:** Ansible (подготовка узлов, настройка Cgroups/Containerd, генерация секретов).
+*   **Kubernetes Stack:** v1.31, Flannel CNI, Helm.
+*   **Storage (CSI):** `democratic-csi` интегрирован с TrueNAS API. Обеспечивает динамический провижининг iSCSI таргетов и ZFS датасетов напрямую в поды (PVC).
+*   **Резервное копирование:** Restic (с шифрованием и дедупликацией), бэкапы отправляются в S3-совместимое хранилище на TrueNAS.
+
+## 4. Жизненный цикл и Развертывание (Zero-Touch)
+
+Единой точкой входа для управления инфраструктурой является `Makefile`. Процесс развертывания полностью автоматизирован и не требует ручного вмешательства (Zero-Touch Provisioning).
+
+` ` `bash
+# Разворачивает виртуальные машины, генерирует динамический inventory,
+# инициализирует кластер K8s, подключает worker-узлы и деплоит CSI драйвер.
+make all
+
+# Полное удаление стенда (Terraform destroy + очистка PVC)
+make down
+
+# Мониторинг состояния гипервизоров и перезапуск узлов
+make vm-status
+make vm-start
+` ` `
+
+Взаимодействие между Terraform и Ansible реализовано бесшовно через динамическую генерацию файла инвентаризации ресурсом `local_file` (шаблонизация актуальных IP-адресов K8s-узлов).
+
+## 5. Roadmap и Архитектурные планы
+
+1.  **Миграция Storage-слоя:** Полный отказ от встроенных приложений (`.ix-apps`) на TrueNAS для высвобождения 32 ГБ оперативной памяти под ZFS ARC (кэш чтения). Перенос баз данных и приложений (Nextcloud, Jellyfin) в поды Kubernetes.
+2.  **CI/CD Pipeline:** Настройка выделенного сервера `gitlab-srv` (уже инициализирован через Terraform) и перенос запуска `ansible-playbook` и `terraform apply` внутрь GitLab Runners.
+3.  **Логирование и Мониторинг:** Исправление Race Condition в назначении LoadBalancer IP для сервиса Loki (переход от хардкода адреса `.206` к аннотациям MetalLB).
+4.  **Hardware AI-Stack:** Внедрение Kubernetes Device Plugins для проброса NVIDIA RTX 4090 и AMD RX 9070 XT внутрь контейнеров с целью локального развертывания LLM (DeepSeek-R1 / Ollama).

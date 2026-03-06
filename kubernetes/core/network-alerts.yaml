@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: network-bandwidth-rules
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: monitoring
+spec:
+  groups:
+  - name: network-capacity
+    rules:
+    - alert: InternetChannelCongestion
+      # Формула: (Байты в секунду * 8 бит) / 1 000 000 = Мбит/с
+      expr: (irate(node_network_receive_bytes_total{device=~"pppoe-wan|eth0|wan"}[5m]) * 8) / 1000000 > 450
+      for: 2m
+      labels:
+        severity: warning
+        source: openwrt
+      annotations:
+        summary: "🚨 Канал связи перегружен!"
+        description: |
+          Внимание! Потребление трафика превысило 90% канала.
+          Текущая загрузка: {{ $value | printf "%.2f" }} Мбит/с.
+          Лимит: 500 Мбит/с.

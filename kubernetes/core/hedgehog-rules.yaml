@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hedgehog-friendly-rules
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: monitoring
+spec:
+  groups:
+  - name: homelab-custom-alerts
+    rules:
+    # 1. АЛЕРТ НА ПРОЦЕССОР (Ryzen)
+    - alert: RyzenIsSweating
+      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "🔥 Процессор плавится!"
+        description: "Твой X3D монстр на узле <code>{{ $labels.instance }}</code> загружен больше чем на 90%. Осади нагружателя, а то дым пойдет!"
+
+    # 2. АЛЕРТ НА ПАМЯТЬ
+    - alert: RamIsEaten
+      expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "🧠 Кто-то сожрал всю ОЗУ!"
+        description: "На узле <code>{{ $labels.instance }}</code> осталось меньше 10% оперативки. Надо действовать, пока OOM Killer не начал крошить всё подряд."
+
+    # 3. АЛЕРТ НА ДОСТУПНОСТЬ (Железо или службы)
+    - alert: TargetIsDead
+      expr: up == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "💀 Железяка отвалилась!"
+        description: "Служба или железка <code>{{ $labels.instance }}</code> (цель: {{ $labels.job }}) перестала отвечать. Ёжику понятно: надо пойти, пнуть её и включить."
+
+    # 4. АЛЕРТ НА ТЕМПЕРАТУРУ
+    - alert: RyzenIsMelting
+      expr: max by (instance) (node_hwmon_temp_celsius) > 80
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "🌋 Температура в космосе!"
+        description: "На узле <code>{{ $labels.instance }}</code> датчик пробил 80°C! Срочно проверь охлад, пока камень не троттлит."

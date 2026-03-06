@@ -1,44 +1,53 @@
 # --- ПЕРЕМЕННЫЕ ПУТЕЙ ---
-TF_APPS_DIR = terraform/apps
-TF_K8S_DIR = terraform/k8s
+SHELL := /bin/bash
+TF_INFRA_DIR = terraform/infra-vms
+TF_CLUSTER_DIR = terraform/cluster-nodes
 ANSIBLE_DIR = ansible
+ANSIBLE_PLAYBOOKS = $(ANSIBLE_DIR)/playbooks
 INVENTORY = $(ANSIBLE_DIR)/inventory/generated_hosts.ini
 APPS_DIR = kubernetes/apps
+CORE_DIR = kubernetes/core
 KUBECONFIG_PATH = $(HOME)/.kube/config
 HYPERVISORS = 192.168.1.22 192.168.1.23
 SSH_USER = km
 
-ANSIBLE_SECRETS = $(ANSIBLE_DIR)/00_generate_secrets.yml
+ANSIBLE_SECRETS = $(ANSIBLE_PLAYBOOKS)/00_generate_secrets.yml
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all down status watch nodes pods logs shell pvc events clean-failed help infra-apps infra-k8s vm-status vm-start vm-stop vm-kill
+.PHONY: all down status watch nodes pods logs shell pvc events clean-failed help \
+        infra-vms cluster-nodes vm-status vm-start vm-stop vm-kill \
+        backup report snapshots test-alert
 
 # --- ОСНОВНЫЕ ЦИКЛЫ ---
 
-all: infra-apps infra-k8s ## Полный разворот: Инфра -> Секреты -> Кубер -> Аппсы
+all: infra-vms cluster-nodes ## Полный разворот: Инфра -> Секреты -> Кубер -> Аппсы
 	@ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
-	sleep 30
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/01_prepare.yml
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_install_k8s.yml
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_init_master.yml
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_DIR)/02_join_workers.yml
+	@sleep 30
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/01_prepare.yml
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_install_k8s.yml
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_init_master.yml
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_join_workers.yml
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=60s
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.3/config/manifests/metallb-native.yaml
 	@sleep 20
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f kubernetes/main/metallb-config.yaml
-	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi ./democratic-csi --namespace democratic-csi --create-namespace -f zfs-iscsi-base.yaml -f zfs-iscsi-prod.yaml -f zfs-iscsi-secrets.yaml
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/metallb-config.yaml
+	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi $(CORE_DIR)/democratic-csi \
+		--namespace democratic-csi --create-namespace \
+		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-base.yaml \
+		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-prod.yaml \
+		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-secrets.yaml
 	KUBECONFIG=$(KUBECONFIG_PATH) $(MAKE) apps
 
 down: confirm ## Полное удаление ресурсов K8s и инфраструктуры
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=30s
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=30s
-	cd $(TF_K8S_DIR) && terraform destroy -auto-approve
-	cd $(TF_APPS_DIR) && terraform destroy -auto-approve
+	cd $(TF_CLUSTER_DIR) && terraform destroy -auto-approve
+	cd $(TF_INFRA_DIR) && terraform destroy -auto-approve
 
-# --- МОНИТОРИНГ ---
+# --- МОНИТОРИНГ И ДЕБАГ ---
 
-status: ## Сводный отчет: ноды, поды, сервисы (IP от MetalLB) и диски
+status: ## Сводный отчет: ноды, поды, сервисы и диски
 	@echo "--- NODES ---"
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
 	@echo "\n--- PODS ---"
@@ -46,10 +55,8 @@ status: ## Сводный отчет: ноды, поды, сервисы (IP о�
 	@echo "\n--- STORAGE (PVC) ---"
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pvc -A
 
-watch: ## Живой мониторинг ресурсов в реальном времени
+watch: ## Живой мониторинг ресурсов
 	watch -n 2 "KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes,pods,svc,pvc -A"
-
-# --- УПРАВЛЕНИЕ K8S ---
 
 nodes: ## Список всех нод кластера
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
@@ -57,7 +64,7 @@ nodes: ## Список всех нод кластера
 pods: ## Список всех подов во всех неймспейсах
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -A
 
-logs: ## Посмотреть логи приложения (usage: make logs app=nextcloud)
+logs: ## Посмотреть логи (usage: make logs app=nextcloud)
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl logs -f $$(KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pods -l app=$(app) -o name | head -n 1)
 
 shell: ## Зайти в консоль пода (usage: make shell app=jellyfin)
@@ -66,46 +73,69 @@ shell: ## Зайти в консоль пода (usage: make shell app=jellyfin)
 pvc: ## Проверить состояние дисков TrueNAS iSCSI
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get pvc,pv -A
 
-events: ## Последние события в кластере (дебаг)
+events: ## Последние события в кластере
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl get events --sort-by=.lastTimestamp -A
 
-clean-failed: ## Удалить поды со статусом Failed или Evicted
+clean-failed: ## Удалить упавшие поды
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pods --field-selector status.phase=Failed -A
 
 # --- ИНФРАСТРУКТУРА ---
 
-infra-apps: ## Развернуть защищенный слой Apps (GitLab)
-	cd $(TF_APPS_DIR) && terraform init && terraform apply -auto-approve
+infra-vms: ## Развернуть слой GitLab ВМ
+	cd $(TF_INFRA_DIR) && terraform init && terraform apply -auto-approve
 
-infra-k8s: ## Развернуть динамический слой K8s (Master + Workers)
-	cd $(TF_K8S_DIR) && terraform init && terraform apply -auto-approve
+cluster-nodes: ## Развернуть слой нод K8s (Master + Workers)
+	cd $(TF_CLUSTER_DIR) && terraform init && terraform apply -auto-approve
 
 # --- УПРАВЛЕНИЕ ГИПЕРВИЗОРАМИ (ТВОИ ЛЮБИМЫЕ) ---
 
 vm-status: ## Статус всех ВМ на гипервизорах
 	@for host in $(HYPERVISORS); do echo "--- $$host ---"; ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; done
 
-vm-start: ## Включить все ВМ кластера и GitLab (кроме Windows)
+vm-start: ## Включить все ВМ кластера
 	@for host in $(HYPERVISORS); do \
 	  echo ">>> Starting VMs on $$host..."; \
 	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v win | xargs -r -I {} virsh -c qemu:///system start {}"; \
 	done
 
-vm-stop: ## Мягкое выключение всех нод (кроме Windows)
+vm-stop: ## Мягкое выключение нод
 	@for host in $(HYPERVISORS); do \
 	  echo ">>> Stopping VMs on $$host..."; \
 	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
 	done
 
 vm-kill: ## ЖЕСТКОЕ выключение нод (Destroy)
-	@echo -n "⚠️ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
+	@echo -n "⚠ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
 	@for host in $(HYPERVISORS); do \
 	  echo ">>> KILLING VMs on $$host..."; \
 	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
 	done
 
+# --- ОБСЛУЖИВАНИЕ И БЭКАП ---
+
+report: ## Генерация MD-дампа и синхронизация (helper.sh)
+	./helper.sh
+
+backup: ## Бэкап в S3 через Restic
+	@source .restic_env && restic -r $$RESTIC_REPOSITORY backup . --exclude-file=.restic_ignore
+
+snapshots: ## Посмотреть список бэкапов в S3
+	@source .restic_env && restic -r $$RESTIC_REPOSITORY snapshots
+
+# Ищем IP Alertmanager для теста
+ALERT_IP = $(shell KUBECONFIG=$(KUBECONFIG_PATH) kubectl get svc -n monitoring monitoring-kube-prometheus-alertmanager -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+test-alert: ## Проверка связи Alertmanager -> Telegram
+	@if [ -z "$(ALERT_IP)" ]; then echo "❌ Ошибка: У Alertmanager нет External IP."; exit 1; fi
+	@echo "--- Sending Test Alert to $(ALERT_IP) ---"
+	@curl -X POST http://$(ALERT_IP):9093/api/v2/alerts \
+		-H "Content-Type: application/json" \
+		-d '[{"labels":{"alertname":"ManualTestAlert","severity":"critical","instance":"$(shell hostname)"},"annotations":{"description":"Это проверка связи! Бот работает."}}]'
+
+# --- ХЕЛПЕРЫ ---
+
 confirm:
-	@read -p "⚠️ Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
+	@read -p "⚠ Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
 
 help: ## Показать это меню помощи
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
