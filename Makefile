@@ -10,34 +10,76 @@ CORE_DIR = kubernetes/core
 KUBECONFIG_PATH = $(HOME)/.kube/config
 HYPERVISORS = 192.168.1.22 192.168.1.23
 SSH_USER = km
-
 ANSIBLE_SECRETS = $(ANSIBLE_PLAYBOOKS)/00_generate_secrets.yml
+
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all down status watch nodes pods logs shell pvc events clean-failed help \
-        infra-vms cluster-nodes vm-status vm-start vm-stop vm-kill \
-        backup report snapshots test-alert
+.PHONY: all secrets infra k8s-base storage monitoring apps down status watch nodes pods logs shell pvc events clean-failed help vm-status vm-start vm-stop vm-kill backup report snapshots test-alert
 
 # --- ОСНОВНЫЕ ЦИКЛЫ ---
 
-all: infra-vms cluster-nodes ## Полный разворот: Инфра -> Секреты -> Кубер -> Аппсы
+all: secrets infra k8s-base storage monitoring apps ## Полный разворот: Секреты -> Инфра -> Кубер -> CSI -> Мониторинг -> Аппсы
+
+secrets: ## Шаг 1: Генерация секретов (ZFS iSCSI, Alertmanager)
+	@echo ">>> Генерация секретов из Vault..."
 	@ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
+
+infra: ## Шаг 2: Поднятие виртуальных машин (Terraform)
+	@echo ">>> Развертывание инфраструктуры KVM..."
+	cd $(TF_INFRA_DIR) && terraform init && terraform apply -auto-approve
+	cd $(TF_CLUSTER_DIR) && terraform init && terraform apply -auto-approve
+
+k8s-base: ## Шаг 3: Настройка ОС и Bootstrap Kubernetes
+	@echo ">>> Установка Kubernetes и сетевой фабрики..."
 	@sleep 30
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/01_prepare.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_install_k8s.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_init_master.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_join_workers.yml
-	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=60s
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=60s
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.3/config/manifests/metallb-native.yaml
 	@sleep 20
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/metallb-config.yaml
+
+storage: ## Шаг 4: Развертывание Democratic CSI (TrueNAS iSCSI)
+	@echo ">>> Подключение хранилища TrueNAS..."
 	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi $(CORE_DIR)/democratic-csi \
 		--namespace democratic-csi --create-namespace \
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-base.yaml \
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-prod.yaml \
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-secrets.yaml
-	KUBECONFIG=$(KUBECONFIG_PATH) $(MAKE) apps
+
+monitoring: ## Шаг 5: Установка Prometheus, Grafana, Loki и Promtail
+	@echo ">>> Развертывание стека мониторинга..."
+	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add grafana https://grafana.github.io/helm-charts
+	KUBECONFIG=$(KUBECONFIG_PATH) helm repo update
+	
+	@echo ">>> Установка Loki..."
+	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install loki grafana/loki-stack \
+		--namespace monitoring --create-namespace \
+		-f $(CORE_DIR)/loki-values.yaml
+		
+	@echo ">>> Установка Kube-Prometheus-Stack (с MetalLB для UI)..."
+	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+		--namespace monitoring --create-namespace \
+		-f $(CORE_DIR)/alertmanager-values-secrets.yaml \
+		--set grafana.service.type=LoadBalancer \
+		--set prometheus.service.type=LoadBalancer \
+		--set alertmanager.service.type=LoadBalancer
+		
+	@echo ">>> Применение правил алертов и дашбордов..."
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/hedgehog-rules.yaml
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/network-alerts.yaml
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/loki-datasource.yaml
+	
+	@echo ">>> Запуск Promtail на гипервизорах..."
+	ansible-playbook $(ANSIBLE_PLAYBOOKS)/deploy_promtail.yml
+
+apps: ## Шаг 6: Деплой пользовательских приложений
+	@echo ">>> Запуск приложений (Nextcloud, Jellyfin)..."
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(APPS_DIR)/
 
 down: confirm ## Полное удаление ресурсов K8s и инфраструктуры
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=30s
@@ -46,7 +88,6 @@ down: confirm ## Полное удаление ресурсов K8s и инфр�
 	cd $(TF_INFRA_DIR) && terraform destroy -auto-approve
 
 # --- МОНИТОРИНГ И ДЕБАГ ---
-
 status: ## Сводный отчет: ноды, поды, сервисы и диски
 	@echo "--- NODES ---"
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
@@ -79,53 +120,44 @@ events: ## Последние события в кластере
 clean-failed: ## Удалить упавшие поды
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pods --field-selector status.phase=Failed -A
 
-# --- ИНФРАСТРУКТУРА ---
-
-infra-vms: ## Развернуть слой GitLab ВМ
-	cd $(TF_INFRA_DIR) && terraform init && terraform apply -auto-approve
-
-cluster-nodes: ## Развернуть слой нод K8s (Master + Workers)
-	cd $(TF_CLUSTER_DIR) && terraform init && terraform apply -auto-approve
-
-# --- УПРАВЛЕНИЕ ГИПЕРВИЗОРАМИ (ТВОИ ЛЮБИМЫЕ) ---
-
+# --- УПРАВЛЕНИЕ ГИПЕРВИЗОРАМИ ---
 vm-status: ## Статус всех ВМ на гипервизорах
-	@for host in $(HYPERVISORS); do echo "--- $$host ---"; ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; done
+	@for host in $(HYPERVISORS); do \
+		echo "--- $$host ---"; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all"; \
+	done
 
 vm-start: ## Включить все ВМ кластера
 	@for host in $(HYPERVISORS); do \
-	  echo ">>> Starting VMs on $$host..."; \
-	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v win | xargs -r -I {} virsh -c qemu:///system start {}"; \
+		echo ">>> Starting VMs on host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v win | xargs -r -I {} virsh -c qemu:///system start {}"; \
 	done
 
 vm-stop: ## Мягкое выключение нод
 	@for host in $(HYPERVISORS); do \
-	  echo ">>> Stopping VMs on $$host..."; \
-	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
+		echo ">>> Stopping VMs on host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
 	done
 
 vm-kill: ## ЖЕСТКОЕ выключение нод (Destroy)
 	@echo -n "⚠ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
 	@for host in $(HYPERVISORS); do \
-	  echo ">>> KILLING VMs on $$host..."; \
-	  ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
+		echo ">>> KILLING VMs on host..."; \
+		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
 	done
 
 # --- ОБСЛУЖИВАНИЕ И БЭКАП ---
-
 report: ## Генерация MD-дампа и синхронизация (helper.sh)
 	./helper.sh
 
 backup: ## Бэкап в S3 через Restic
-	@source .restic_env && restic -r $$RESTIC_REPOSITORY backup . --exclude-file=.restic_ignore
+	@source .restic_env && restic -r RESTIC_REPOSITORY backup . --exclude-file=.restic_ignore
 
 snapshots: ## Посмотреть список бэкапов в S3
-	@source .restic_env && restic -r $$RESTIC_REPOSITORY snapshots
-
-# Ищем IP Alertmanager для теста
-ALERT_IP = $(shell KUBECONFIG=$(KUBECONFIG_PATH) kubectl get svc -n monitoring monitoring-kube-prometheus-alertmanager -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+	@source .restic_env && restic -r RESTIC_REPOSITORY snapshots
 
 test-alert: ## Проверка связи Alertmanager -> Telegram
+	$(eval ALERT_IP := $(shell KUBECONFIG=$(KUBECONFIG_PATH) kubectl get svc -n monitoring kube-prometheus-stack-alertmanager -o jsonpath='{.status.loadBalancer.ingress.ip}'))
 	@if [ -z "$(ALERT_IP)" ]; then echo "❌ Ошибка: У Alertmanager нет External IP."; exit 1; fi
 	@echo "--- Sending Test Alert to $(ALERT_IP) ---"
 	@curl -X POST http://$(ALERT_IP):9093/api/v2/alerts \
@@ -133,7 +165,6 @@ test-alert: ## Проверка связи Alertmanager -> Telegram
 		-d '[{"labels":{"alertname":"ManualTestAlert","severity":"critical","instance":"$(shell hostname)"},"annotations":{"description":"Это проверка связи! Бот работает."}}]'
 
 # --- ХЕЛПЕРЫ ---
-
 confirm:
 	@read -p "⚠ Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
 
