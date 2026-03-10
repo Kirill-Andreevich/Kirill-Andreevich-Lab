@@ -1,65 +1,54 @@
 <div align="center">
-  <h1>🚀 Enterprise Homelab: K8s, GitOps & IaC</h1>
-  <p><b>Полностью автоматизированная bare-metal лаборатория на архитектуре Zen 5 (9950X3D + 9800X3D)</b></p>
+  <h1>🚀 Enterprise Homelab: DevOps & SRE Sandbox</h1>
+  <p><b>Инженерный полигон для отработки навыков IaC, GitOps, кластеризации и управления инфраструктурой на базе архитектуры Zen 5.</b></p>
 
-  <!-- Бейджи стека технологий -->
   <img src="https://img.shields.io/badge/Terraform-7B42BC?style=for-the-badge&logo=terraform&logoColor=white" />
   <img src="https://img.shields.io/badge/Ansible-000000?style=for-the-badge&logo=ansible&logoColor=white" />
   <img src="https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" />
   <img src="https://img.shields.io/badge/TrueNAS_SCALE-0095D5?style=for-the-badge&logo=truenas&logoColor=white" />
   <img src="https://img.shields.io/badge/OpenWrt-00B5E2?style=for-the-badge&logo=openwrt&logoColor=white" />
-  <img src="https://img.shields.io/badge/AMD_Ryzen-ED1C24?style=for-the-badge&logo=amd&logoColor=white" />
 </div>
 
 <br>
 
-Данный репозиторий содержит конфигурацию **Infrastructure-as-Code (IaC)** для управления локальным вычислительным кластером. Проект демонстрирует Enterprise-подход: Zero-Touch Provisioning, строгое разделение Compute/Storage слоев и динамическое управление дисками через CSI.
+## 🎯 Цель проекта
+Данный репозиторий — это лабораторный стенд для прокачки hard-skills DevOps инженера. Он описывает полностью автоматизированный процесс создания вычислительного кластера, начиная от разметки "голого" железа и заканчивая динамическим выделением томов хранения.
 
-## 🖥️ 1. Вычислительные мощности (Compute)
+## ✨ Что умеет данный код (Возможности)
 
-Вычислительный слой использует KVM/libvirt с прямым пробросом процессора (`host-passthrough`) для максимальной утилизации 3D V-Cache виртуальными машинами Kubernetes.
+Весь цикл развертывания инфраструктуры полностью автоматизирован (Zero-Touch Provisioning). На данный момент кодовая база умеет:
 
-| Узел | Роль | OS | CPU | RAM | GPU |
+*   **Полная автоматизация виртуализации (IaC):** Terraform изолированно поднимает KVM-машины (Master, Workers, GitLab) с прямым пробросом процессора (`host-passthrough`), используя модульную архитектуру и раздельные стейты.
+*   **Динамическая инвентаризация:** Terraform "на лету" генерирует файл `hosts.ini`, передавая Ansible актуальные IP-адреса свежесозданных виртуальных машин.
+*   **Bootstrap кластера Kubernetes (v1.31):** Ansible самостоятельно подготавливает ноды (настраивает Containerd и SystemdCgroup), инициализирует master-узел, генерирует токены и бесшовно подключает worker-узлы.
+*   **Сетевая фабрика и балансировка (MetalLB):** Развертывание Flannel CNI и настройка MetalLB (L2 Advertisement) для автоматической выдачи статических IP-адресов сервисам из пула `192.168.1.200-239`.
+*   **Enterprise Storage Provisioning (CSI):** Глубокая интеграция кластера с TrueNAS SCALE через `democratic-csi`. Кластер общается с NAS по API, автоматически нарезает ZFS-датасеты и презентует их подам по протоколу iSCSI без ручного вмешательства.
+*   **Резервное копирование (Restic):** Скрипты для создания инкрементальных S3-бэкапов с дедупликацией в бакет `homelab-backups` на TrueNAS.
+*   **Мониторинг и Алертинг:** Развернут стек сбора логов (Promtail + Loki) с кастомными правилами Prometheus (например, мониторинг температуры процессоров и потребления ОЗУ с отправкой алертов в Telegram).
+*   **Безопасное управление секретами:** Все пароли и доступы (iSCSI, S3, Alertmanager) надежно зашифрованы с помощью Ansible Vault и шаблонизируются через Jinja2 прямо перед деплоем.
+
+## 🖥️ Аппаратная архитектура (Compute & Storage)
+
+Инфраструктура строго разделяет вычислительный слой и слой хранения данных.
+
+| Узел (IP) | Роль | OS | CPU | RAM | GPU |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Node .22** | Compute / KVM | EndeavourOS (Linux 6.18) | AMD Ryzen 9 **9950X3D** | 64 GB | NVIDIA RTX 4090 |
-| **Node .23** | Workstation / KVM | Manjaro (Linux 6.18) | AMD Ryzen 7 **9800X3D** | 32 GB | AMD RX 9070 XT |
+| **Node .22** | Compute | EndeavourOS | AMD Ryzen 9 **9950X3D** | 64 GB | NVIDIA RTX 4090 |
+| **Node .23** | Workstation | Manjaro | AMD Ryzen 7 **9800X3D** | 32 GB | AMD RX 9070 XT |
+| **Node .30** | Storage / iSCSI | **TrueNAS SCALE 25.10.1** | AMD Ryzen 7 **9700X** | 32 GB | - |
 
-## 💽 2. Слой хранения данных (TrueNAS Storage)
+**Дисковая подсистема ZFS (Узел .30):**
+*   ⚡ **NVME (Tier-1, ~1 TB):** Высокоскоростной пул для баз данных и Persistent Volumes Кубернетеса (`NVME/k8s-vols`). 
+*   🗄️ **RAID5 (Tier-2, ~5.15 TB):** Объемное файловое хранилище тяжелых медиаданных и S3-бакет для резервного копирования (`RAID5/s3-backups`).
 
-Сердце системы хранения — узел **Node .30** на базе AMD Ryzen 7 **9700X** (32 GB RAM) под управлением **TrueNAS SCALE 25.10.1**. 
+## 🌐 Сеть и Маршрутизация
 
-Интеграция с Kubernetes выполнена через драйвер `democratic-csi`, который автоматически нарезает ZFS-датасеты и раздает их подам по протоколу iSCSI. Дисковая подсистема разделена на 2 основных ZFS-пула:
+Управление сетевым слоем осуществляется через шлюз **Xiaomi AX3600** (OpenWrt 24.10.3):
+*   **IPAM:** Жесткие DHCP MAC-привязки для обеспечения неизменности адресов базовых узлов.
+*   **Traffic Shifting (Рычаг):** Управление входящим трафиком (DNAT) для бесшовного (Blue/Green) переключения 80/443 портов между старыми контейнерами TrueNAS Docker и новым K8s Ingress Controller.
 
-| Пул ZFS | Объем | Назначение и Датасеты |
-| :--- | :--- | :--- |
-| ⚡ **NVME** | ~ 1 TB | **Tier-1 Storage:** Базы данных, кэш и Persistent Volumes для K8s (`NVME/k8s-vols`). Обеспечивает максимальный IOPS для подов. |
-| 🗄️ **RAID5** | ~ 5.15 TB | **Tier-2 Storage:** Файловое хранилище, тяжелые медиаданные (`RAID5/media`) и S3-бакет для резервного копирования Restic (`RAID5/s3-backups`). |
+## 🗺️ Планы развития (Roadmap)
 
-## 🌐 3. Сеть и Маршрутизация (OpenWrt)
+Текущий фокус: Миграция stateful-сервисов в кластер, запуск GitLab CI/CD пайплайнов и проброс видеокарт (Device Plugins) для локального AI-стека.
 
-Сетевая связность и IPAM управляются шлюзом **Xiaomi AX3600** (OpenWrt 24.10.3).
-*   **DHCP/DNS:** Жесткие MAC-привязки для узлов `.22`, `.23` и `.30`.
-*   **Load Balancing (K8s):** Выделенный L2-пул MetalLB `192.168.1.200-239` для балансировки входящего трафика сервисов.
-*   **Firewall & DNAT:** Проброс портов на Nginx Proxy Manager (80/443 -> 30021/30022), RDP и RustDesk.
-
-## 🛠️ 4. Жизненный цикл (Zero-Touch Provisioning)
-
-Единой точкой входа для автоматизации является `Makefile`. Terraform и Ansible работают бесшовно благодаря динамической генерации `inventory`-файлов.
-
-` ` `bash
-# Разворачивает KVM-машины, генерирует инвентарь и накатывает Kubernetes + CSI
-make all
-
-# Удалить стенд (Terraform destroy + очистка PVC)
-make down
-
-# Управление питанием нод
-make vm-status
-make vm-start
-` ` `
-
-## 🗺️ 5. Планы развития (Roadmap)
-
-Подробный план развития инфраструктуры, включая задачи по миграции сервисов, внедрению CI/CD (GitLab) и развертыванию AI-стека (Ollama/DeepSeek) с пробросом GPU, задокументирован отдельно.
-
-👉 **[Ознакомиться с Roadmap проекта](./ROADMAP.md)**
+👉 **[Ознакомиться с детальным Roadmap проекта](./ROADMAP.md)**
