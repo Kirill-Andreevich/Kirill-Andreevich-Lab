@@ -51,31 +51,30 @@ storage: ## Шаг 4: Развертывание Democratic CSI (TrueNAS iSCSI)
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-secrets.yaml
 
 monitoring: ## Шаг 5: Установка Prometheus, Grafana, Loki и Promtail
-	@echo ">>> Развертывание стека мониторинга..."
+	@echo ">>> Развертывание стека мониторинга (Prometheus + Grafana)..."
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add grafana https://grafana.github.io/helm-charts
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo update
-	
-	@echo ">>> Установка Loki..."
-	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install loki grafana/loki-stack \
-		--namespace monitoring --create-namespace \
-		-f $(CORE_DIR)/loki-values.yaml
-		
-	@echo ">>> Установка Kube-Prometheus-Stack (с MetalLB для UI)..."
 	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 		--namespace monitoring --create-namespace \
 		-f $(CORE_DIR)/alertmanager-values-secrets.yaml \
+		-f $(CORE_DIR)/grafana-dashboards.yaml \
 		--set grafana.service.type=LoadBalancer \
 		--set prometheus.service.type=LoadBalancer \
-		--set alertmanager.service.type=LoadBalancer
-		
-	@echo ">>> Применение правил алертов и дашбордов..."
+		--set alertmanager.service.type=LoadBalancer \
+		--set kubeEtcd.enabled=false \
+		--set kubeControllerManager.enabled=false \
+		--set kubeScheduler.enabled=false \
+		--set kubeProxy.enabled=false
+	@echo ">>> Установка стека логирования (Loki)..."
+	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install loki grafana/loki-stack \
+		--namespace monitoring \
+		-f $(CORE_DIR)/loki-values.yaml
+	@echo ">>> Применение кастомных правил и источников данных..."
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/loki-datasource.yaml
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/baremetal-monitors.yaml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/hedgehog-rules.yaml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/network-alerts.yaml
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/loki-datasource.yaml
-	
-	@echo ">>> Запуск Promtail на гипервизорах..."
-	ansible-playbook $(ANSIBLE_PLAYBOOKS)/deploy_promtail.yml
 
 apps: ## Шаг 6: Деплой пользовательских приложений
 	@echo ">>> Запуск приложений (Nextcloud, Jellyfin)..."

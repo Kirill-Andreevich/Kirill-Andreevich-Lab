@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: baremetal-exporters
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+subsets:
+  - addresses:
+      - ip: 192.168.1.22
+      - ip: 192.168.1.23
+    ports:
+      - name: node-exporter
+        port: 9100
+        protocol: TCP
+  - addresses:
+      - ip: 192.168.1.22
+    ports:
+      - name: nvidia-exporter
+        port: 9400
+        protocol: TCP
+  - addresses:
+      - ip: 192.168.1.30
+    ports:
+      - name: truenas-netdata
+        port: 19999
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: baremetal-exporters
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: node-exporter
+      port: 9100
+    - name: nvidia-exporter
+      port: 9400
+    - name: truenas-netdata
+      port: 19999
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: baremetal-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      release: kube-prometheus-stack
+  endpoints:
+    - port: node-exporter
+      interval: 15s
+      relabelings:
+        - targetLabel: job
+          replacement: node-exporter
+    - port: nvidia-exporter
+      interval: 15s
+      relabelings:
+        - targetLabel: job
+          replacement: dcgm-exporter
+    - port: truenas-netdata
+      path: /api/v1/allmetrics
+      params:
+        format: ['prometheus']
+      interval: 15s
+      relabelings:
+        - targetLabel: job
+          replacement: truenas

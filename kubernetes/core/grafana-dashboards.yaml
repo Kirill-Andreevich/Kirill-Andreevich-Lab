@@ -1,0 +1,26 @@
+grafana:
+  # Говорим Графане, откуда именно читать скачанные дашборды
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: 'Homelab' # Дашборды появятся в красивой папке Homelab
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Инструкция для init-контейнера: что скачивать
+  dashboards:
+    default:
+      node-exporter-full:
+        gnetId: 1860
+        revision: 33
+        datasource: Prometheus
+      nvidia-dcgm:
+        gnetId: 12239
+        revision: 1
+        datasource: Prometheus
