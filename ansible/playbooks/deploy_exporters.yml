@@ -1,0 +1,31 @@
+---
+- name: Deploy Hardware Metrics Exporters (DevOps Way)
+  hosts: iron_nodes
+  become: true
+
+  tasks:
+    - name: Install Node Exporter (CPU, RAM, Disks)
+      pacman:
+        name: prometheus-node-exporter
+        state: present
+
+    - name: Enable and start Node Exporter
+      systemd:
+        name: prometheus-node-exporter
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Fix Docker iptables chains (Restart Docker)
+      systemd:
+        name: docker
+        state: restarted
+      ignore_errors: true
+
+    - name: Start NVIDIA DCGM Exporter (RTX 4090)
+      shell: |
+        docker run -d --gpus all --rm --name dcgm-exporter \
+        --network host nvcr.io/nvidia/k8s/dcgm-exporter:3.3.0-3.2.0-ubuntu22.04
+      when: inventory_hostname == 'ryzen-1'
+      ignore_errors: true 
+

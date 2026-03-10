@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homelab-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0" # Важно для загрузки больших файлов в Nextcloud
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nextcloud.ваштестовыйдомен.ru # Замените на ваш домен, если есть, или удалите строку host
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nextcloud-svc
+            port:
+              number: 80
+  - host: jellyfin.ваштестовыйдомен.ru
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jellyfin-svc
+            port:
+              number: 8096

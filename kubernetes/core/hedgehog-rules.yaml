@@ -8,44 +8,60 @@ metadata:
     release: monitoring
 spec:
   groups:
-  - name: homelab-custom-alerts
-    rules:
-    # 1. АЛЕРТ НА ПРОЦЕССОР (Ryzen)
-    - alert: RyzenIsSweating
-      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
-      for: 3m
-      labels:
-        severity: critical
-      annotations:
-        summary: "🔥 Процессор плавится!"
-        description: "Твой X3D монстр на узле <code>{{ $labels.instance }}</code> загружен больше чем на 90%. Осади нагружателя, а то дым пойдет!"
+    - name: homelab-custom-alerts
+      rules:
+        # --- СТАРЫЕ АЛЕРТЫ ---
+        - alert: RyzenIsSweating
+          expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "🔥 Процессор плавится!"
+            description: "Узел {{ $labels.instance }} загружен больше чем на 90%."
+            
+        - alert: RamIsEaten
+          expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "🧠 Кто-то сожрал всю ОЗУ!"
+            description: "На узле {{ $labels.instance }} осталось меньше 10% оперативки."
 
-    # 2. АЛЕРТ НА ПАМЯТЬ
-    - alert: RamIsEaten
-      expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
-      for: 3m
-      labels:
-        severity: critical
-      annotations:
-        summary: "🧠 Кто-то сожрал всю ОЗУ!"
-        description: "На узле <code>{{ $labels.instance }}</code> осталось меньше 10% оперативки. Надо действовать, пока OOM Killer не начал крошить всё подряд."
+        - alert: TargetIsDead
+          expr: up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "💀 Железяка отвалилась!"
+            description: "Цель {{ $labels.instance }} ({{ $labels.job }}) перестала отвечать."
 
-    # 3. АЛЕРТ НА ДОСТУПНОСТЬ (Железо или службы)
-    - alert: TargetIsDead
-      expr: up == 0
-      for: 2m
-      labels:
-        severity: critical
-      annotations:
-        summary: "💀 Железяка отвалилась!"
-        description: "Служба или железка <code>{{ $labels.instance }}</code> (цель: {{ $labels.job }}) перестала отвечать. Ёжику понятно: надо пойти, пнуть её и включить."
+        # --- НОВЫЕ АЛЕРТЫ ---
+        - alert: DiskIsFull
+          expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "💾 Место на диске заканчивается!"
+            description: "На гипервизоре {{ $labels.instance }} (раздел /) осталось меньше 10% места!"
 
-    # 4. АЛЕРТ НА ТЕМПЕРАТУРУ
-    - alert: RyzenIsMelting
-      expr: max by (instance) (node_hwmon_temp_celsius) > 80
-      for: 2m
-      labels:
-        severity: critical
-      annotations:
-        summary: "🌋 Температура в космосе!"
-        description: "На узле <code>{{ $labels.instance }}</code> датчик пробил 80°C! Срочно проверь охлад, пока камень не троттлит."
+        - alert: NvidiaGpuOnFire
+          expr: DCGM_FI_DEV_GPU_TEMP > 85
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "🔥 RTX 4090 перегревается!"
+            description: "Температура NVIDIA GPU пробила 85°C. Проверь охлад!"
+
+        - alert: AmdGpuOnFire
+          expr: amdgpu_temperature_edge > 85
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "🔥 RX 9070 XT перегревается!"
+            description: "Температура AMD GPU пробила 85°C. Пора снизить нагрузку!"
