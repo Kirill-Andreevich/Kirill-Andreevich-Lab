@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: nextcloud.ваштестовыйдомен.ru # Замените на ваш домен, если есть, или удалите строку host
+  - host: nextcloud.lan
     http:
       paths:
       - path: /
@@ -18,7 +18,7 @@ spec:
             name: nextcloud-svc
             port:
               number: 80
-  - host: jellyfin.ваштестовыйдомен.ru
+  - host: jellyfin.lan
     http:
       paths:
       - path: /

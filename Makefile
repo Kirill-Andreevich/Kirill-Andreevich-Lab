@@ -10,7 +10,6 @@ CORE_DIR = kubernetes/core
 KUBECONFIG_PATH = $(HOME)/.kube/config
 HYPERVISORS = 192.168.1.22 192.168.1.23
 SSH_USER = km
-ANSIBLE_SECRETS = $(ANSIBLE_PLAYBOOKS)/00_generate_secrets.yml
 
 export ANSIBLE_HOST_KEY_CHECKING=False
 
@@ -18,11 +17,7 @@ export ANSIBLE_HOST_KEY_CHECKING=False
 
 # --- ОСНОВНЫЕ ЦИКЛЫ ---
 
-all: secrets infra k8s-base storage monitoring apps ## Полный разворот: Секреты -> Инфра -> Кубер -> CSI -> Мониторинг -> Аппсы
-
-secrets: ## Шаг 1: Генерация секретов (ZFS iSCSI, Alertmanager)
-	@echo ">>> Генерация секретов из Vault..."
-	@ansible-playbook $(ANSIBLE_SECRETS) --ask-vault-pass
+all: infra k8s-base storage monitoring apps ## Полный разворот: Секреты -> Инфра -> Кубер -> CSI -> Мониторинг -> Аппсы
 
 infra: ## Шаг 2: Поднятие виртуальных машин (Terraform)
 	@echo ">>> Развертывание инфраструктуры KVM..."
@@ -44,7 +39,7 @@ k8s-base: ## Шаг 3: Настройка ОС и Bootstrap Kubernetes
 
 storage: ## Шаг 4: Развертывание Democratic CSI (TrueNAS iSCSI)
 	@echo ">>> Подключение хранилища TrueNAS..."
-	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install truenas-iscsi $(CORE_DIR)/democratic-csi \
+	KUBECONFIG=$(KUBECONFIG_PATH) helm secrets upgrade --install truenas-iscsi $(CORE_DIR)/democratic-csi \
 		--namespace democratic-csi --create-namespace \
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-base.yaml \
 		-f $(CORE_DIR)/truenas-csi/zfs-iscsi-prod.yaml \
@@ -55,7 +50,7 @@ monitoring: ## Шаг 5: Установка Prometheus, Grafana, Loki и Promtai
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo add grafana https://grafana.github.io/helm-charts
 	KUBECONFIG=$(KUBECONFIG_PATH) helm repo update
-	KUBECONFIG=$(KUBECONFIG_PATH) helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+	KUBECONFIG=$(KUBECONFIG_PATH) helm secrets upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 		--namespace monitoring --create-namespace \
 		-f $(CORE_DIR)/alertmanager-values-secrets.yaml \
 		-f $(CORE_DIR)/grafana-dashboards.yaml \
@@ -84,7 +79,6 @@ down: confirm ## Полное удаление ресурсов K8s и инфр�
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=30s
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=30s
 	cd $(TF_CLUSTER_DIR) && terraform destroy -auto-approve
-	cd $(TF_INFRA_DIR) && terraform destroy -auto-approve
 
 # --- МОНИТОРИНГ И ДЕБАГ ---
 status: ## Сводный отчет: ноды, поды, сервисы и диски
@@ -150,10 +144,10 @@ report: ## Генерация MD-дампа и синхронизация (helpe
 	./helper.sh
 
 backup: ## Бэкап в S3 через Restic
-	@source .restic_env && restic -r RESTIC_REPOSITORY backup . --exclude-file=.restic_ignore
+	@source .restic_env && restic backup . --exclude-file=.restic_ignore
 
 snapshots: ## Посмотреть список бэкапов в S3
-	@source .restic_env && restic -r RESTIC_REPOSITORY snapshots
+	@source .restic_env && restic snapshots
 
 test-alert: ## Проверка связи Alertmanager -> Telegram
 	$(eval ALERT_IP := $(shell KUBECONFIG=$(KUBECONFIG_PATH) kubectl get svc -n monitoring kube-prometheus-stack-alertmanager -o jsonpath='{.status.loadBalancer.ingress.ip}'))

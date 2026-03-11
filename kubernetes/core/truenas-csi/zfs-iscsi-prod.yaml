@@ -1,15 +1,15 @@
 driver:
   config:
     sshConnection:
-      host: 192.168.1.30
+      host: truenas-core.lan
       username: km
     httpConnection:
-      host: 192.168.1.30
+      host: truenas-core.lan
     zfs:
       datasetParentName: NVME/k8s-vols/data
       detachedSnapshotsDatasetParentName: NVME/k8s-vols/snaps
     iscsi:
-      targetPortal: "192.168.1.30:3260"
+      targetPortal: "truenas-core.lan:3260"
       targetGroups:
         - targetGroupPortalGroup: 2
           targetGroupInitiatorGroup: 1

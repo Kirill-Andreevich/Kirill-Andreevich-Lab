@@ -33,10 +33,10 @@
             gitlab:
               image: 'gitlab/gitlab-ce:latest'
               restart: always
-              hostname: '192.168.1.101'
+              hostname: 'gitlab-srv.lan'
               environment:
                 GITLAB_OMNIBUS_CONFIG: |
-                  external_url 'http://192.168.1.101'
+                  external_url 'http://gitlab-srv.lan'
               ports:
                 - '80:80'
                 - '443:443'
