@@ -1,34 +1,41 @@
 stages:
-  - deploy-infrastructure
+  - infrastructure
+  - configuration
 
-image: alpine:latest
-
-before_script:
-  # Устанавливаем необходимые пакеты
-  - apk add --no-cache openssh-client ansible terraform make bash curl
-  # Настраиваем SSH-ключ для доступа к гипервизорам
-  - eval $(ssh-agent -s)
-  - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-
-deploy-cluster:
-  stage: deploy-infrastructure
+# 1. Поднятие ВМ (Аналог make infra)
+deploy_infrastructure:
+  stage: infrastructure
+  tags:
+    - shell
   script:
-    - echo ">>> Запуск Terraform (infra-vms)..."
+    - echo ">>> Развертывание инфраструктуры KVM..."
     - cd terraform/infra-vms && terraform init && terraform apply -auto-approve
-    - echo ">>> Запуск Terraform (cluster-nodes)..."
     - cd ../cluster-nodes && terraform init && terraform apply -auto-approve
-    - cd ../../ansible
-    - echo ">>> Настройка Kubernetes через Ansible..."
+
+# 2. Установка Kubernetes (Аналог make k8s-base)
+configure_kubernetes:
+  stage: configuration
+  tags:
+    - shell
+  before_script:
+    # Подгружаем SSH-ключ из секретов GitLab
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - export ANSIBLE_HOST_KEY_CHECKING=False
-    - ansible-playbook -i inventory/generated_hosts.ini playbooks/01_prepare.yml
-    - ansible-playbook -i inventory/generated_hosts.ini playbooks/02_install_k8s.yml
-    - ansible-playbook -i inventory/generated_hosts.ini playbooks/02_init_master.yml
-    - ansible-playbook -i inventory/generated_hosts.ini playbooks/02_join_workers.yml
-  only:
-    refs:
-      - main
-    changes:
-      - terraform/**/*
-      - ansible/**/*
+  script:
+    - echo ">>> Установка Kubernetes и сетевой фабрики..."
+    - sleep 30
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_prepare.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_install_k8s.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_init_master.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_join_workers.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_containerd_mirrors.yml
+    # Настройка сети и балансировщика
+    - export KUBECONFIG=$HOME/.kube/config
+    - kubectl wait --for=condition=Ready nodes --all --timeout=120s
+    - kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+    - kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.3/config/manifests/metallb-native.yaml
+    - kubectl wait --namespace metallb-system --for=condition=ready pod -l component=controller --timeout=300s
+    - kubectl wait --namespace metallb-system --for=condition=ready pod -l component=speaker --timeout=300s
+    - sleep 15
+    - kubectl apply -f kubernetes/core/metallb-config.yaml
