@@ -15,6 +15,8 @@ deploy_infrastructure:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
     - ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+    - echo ">>> Адаптируем пути к ключам под CI-окружение..."
+    - find terraform -name "providers.tf" -exec sed -i "s|/home/km/|$HOME/|g" {} +
   script:
     - echo ">>> Развертывание инфраструктуры KVM..."
     - cd terraform/infra-vms && terraform init && terraform apply -auto-approve
