@@ -7,6 +7,20 @@ deploy_infrastructure:
   stage: infrastructure
   tags:
     - shell
+  before_script:
+    - echo ">>> Настройка гибридных зеркал Terraform (Yandex + direct)..."
+    - |
+      cat <<EOF > ~/.terraformrc
+      provider_installation {
+        network_mirror {
+          url = "https://terraform-mirror.yandex.ru/"
+          include = ["registry.terraform.io/*/*"]
+        }
+        direct {
+          exclude = ["registry.terraform.io/*/*"]
+        }
+      }
+      EOF
   script:
     - echo ">>> Развертывание инфраструктуры KVM..."
     - cd terraform/infra-vms && terraform init && terraform apply -auto-approve
@@ -18,7 +32,7 @@ configure_kubernetes:
   tags:
     - shell
   before_script:
-    # Подгружаем SSH-ключ из секретов GitLab
+    # Подгружаем SSH-ключ из секретов GitLab для Ansible
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - export ANSIBLE_HOST_KEY_CHECKING=False
