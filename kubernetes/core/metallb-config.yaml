@@ -5,7 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - 192.168.1.200-192.168.1.239 # Твой «золотой» диапазон
+  - 192.168.1.30-192.168.1.49 # Пул ВНЕ зоны действия DHCP
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

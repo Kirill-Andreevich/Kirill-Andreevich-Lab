@@ -1,4 +1,4 @@
-### --- ПЕРЕМЕННЫЕ ПУТЕЙ ---
+# --- ПЕРЕМЕННЫЕ ПУТЕЙ ---
 SHELL := /bin/bash
 TF_INFRA_DIR = terraform/infra-vms
 TF_CLUSTER_DIR = terraform/cluster-nodes
@@ -13,10 +13,11 @@ SSH_USER = km
 
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-.PHONY: all secrets infra k8s-base storage monitoring argocd down status watch nodes pods logs shell pvc events clean-failed help vm-status vm-start vm-stop vm-kill backup report snapshots test-alert
+.PHONY: all secrets infra k8s-base storage monitoring apps down status watch nodes pods logs shell pvc events clean-failed help vm-status vm-start vm-stop vm-kill backup report snapshots test-alert
 
-### --- ОСНОВНЫЕ ЦИКЛЫ ---
-all: infra k8s-base storage monitoring argocd ## Полный разворот: Инфра -> Кубер -> CSI -> Мониторинг -> ArgoCD
+# --- ОСНОВНЫЕ ЦИКЛЫ ---
+
+all: infra k8s-base storage monitoring apps ## Полный разворот: Секреты -> Инфра -> Кубер -> CSI -> Мониторинг -> Аппсы
 
 infra: ## Шаг 2: Поднятие виртуальных машин (Terraform)
 	@echo ">>> Развертывание инфраструктуры KVM..."
@@ -30,15 +31,10 @@ k8s-base: ## Шаг 3: Настройка ОС и Bootstrap Kubernetes
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_install_k8s.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_init_master.yml
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/02_join_workers.yml
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/01_containerd_mirrors.yml
-	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOKS)/03_setup_gitlab.yml
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=120s
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready nodes --all --timeout=60s
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.14.3/config/manifests/metallb-native.yaml
-	@echo ">>> Ожидание запуска MetalLB (защита от Race Condition)..."
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --namespace metallb-system --for=condition=ready pod -l component=controller --timeout=300s
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --namespace metallb-system --for=condition=ready pod -l component=speaker --timeout=300s
-	@sleep 15
+	@sleep 20
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/metallb-config.yaml
 
 storage: ## Шаг 4: Развертывание Democratic CSI (TrueNAS iSCSI)
@@ -75,22 +71,16 @@ monitoring: ## Шаг 5: Установка Prometheus, Grafana, Loki и Promtai
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/hedgehog-rules.yaml
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(CORE_DIR)/network-alerts.yaml
 
-argocd: ## Шаг 6: Установка ArgoCD и запуск GitOps
-	@echo ">>> Создание неймспейса и установка ArgoCD..."
-	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl create namespace argocd
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
-	@echo ">>> Фикс: замена капризного образа Redis с ECR на Docker Hub..."
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd
-	@echo ">>> Ожидание запуска подов ArgoCD (может занять пару минут)..."
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl wait --for=condition=Ready pods --all -n argocd --timeout=300s
-	@echo ">>> Передача управления кластеру в ArgoCD (GitOps)..."
-	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f kubernetes/argocd-apps.yaml
+apps: ## Шаг 6: Деплой пользовательских приложений
+	@echo ">>> Запуск приложений (Nextcloud, Jellyfin)..."
+	KUBECONFIG=$(KUBECONFIG_PATH) kubectl apply -f $(APPS_DIR)/
 
 down: confirm ## Полное удаление ресурсов K8s и инфраструктуры
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete -f $(APPS_DIR)/ --timeout=30s
 	-KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pvc --all -A --timeout=30s
 	cd $(TF_CLUSTER_DIR) && terraform destroy -auto-approve
 
+# --- МОНИТОРИНГ И ДЕБАГ ---
 status: ## Сводный отчет: ноды, поды, сервисы и диски
 	@echo "--- NODES ---"
 	@KUBECONFIG=$(KUBECONFIG_PATH) kubectl get nodes -o wide
@@ -123,6 +113,7 @@ events: ## Последние события в кластере
 clean-failed: ## Удалить упавшие поды
 	KUBECONFIG=$(KUBECONFIG_PATH) kubectl delete pods --field-selector status.phase=Failed -A
 
+# --- УПРАВЛЕНИЕ ГИПЕРВИЗОРАМИ ---
 vm-status: ## Статус всех ВМ на гипервизорах
 	@for host in $(HYPERVISORS); do \
 		echo "--- $$host ---"; \
@@ -131,23 +122,24 @@ vm-status: ## Статус всех ВМ на гипервизорах
 
 vm-start: ## Включить все ВМ кластера
 	@for host in $(HYPERVISORS); do \
-		echo ">>> Starting VMs on $$host..."; \
+		echo ">>> Starting VMs on host..."; \
 		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-shutoff | grep -v win | xargs -r -I {} virsh -c qemu:///system start {}"; \
 	done
 
 vm-stop: ## Мягкое выключение нод
 	@for host in $(HYPERVISORS); do \
-		echo ">>> Stopping VMs on $$host..."; \
+		echo ">>> Stopping VMs on host..."; \
 		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --all --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system shutdown {}"; \
 	done
 
 vm-kill: ## ЖЕСТКОЕ выключение нод (Destroy)
-	@echo -n "⚠ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ "$${ans:-N}" = "y" ]; \
-	for host in $(HYPERVISORS); do \
-		echo ">>> KILLING VMs on $$host..."; \
+	@echo -n "⚠ WARNING: Hard kill all non-win VMs? [y/N]: " && read ans && [ $${ans:-N} = y ]
+	@for host in $(HYPERVISORS); do \
+		echo ">>> KILLING VMs on host..."; \
 		ssh $(SSH_USER)@$$host "virsh -c qemu:///system list --name --state-running | grep -v win | xargs -r -I {} virsh -c qemu:///system destroy {}"; \
 	done
 
+# --- ОБСЛУЖИВАНИЕ И БЭКАП ---
 report: ## Генерация MD-дампа и синхронизация (helper.sh)
 	./helper.sh
 
@@ -165,6 +157,7 @@ test-alert: ## Проверка связи Alertmanager -> Telegram
 		-H "Content-Type: application/json" \
 		-d '[{"labels":{"alertname":"ManualTestAlert","severity":"critical","instance":"$(shell hostname)"},"annotations":{"description":"Это проверка связи! Бот работает."}}]'
 
+# --- ХЕЛПЕРЫ ---
 confirm:
 	@read -p "⚠ Уверены? [y/N]: " ans; [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]
 

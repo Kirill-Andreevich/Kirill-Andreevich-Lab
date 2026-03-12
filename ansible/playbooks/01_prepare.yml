@@ -3,6 +3,9 @@
   hosts: all
   become: true
   tasks:
+    - name: Wait for background apt processes to finish
+      shell: "while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 5; done"
+
     - name: Kill broken kubernetes repos
       file:
         path: "/etc/apt/sources.list.d/kubernetes.list"
@@ -30,7 +33,6 @@
           br_netfilter
         dest: /etc/modules-load.d/k8s.conf
 
-
     - name: Set sysctl networking parameters
       sysctl:
         name: "{{ item.key }}"
@@ -43,7 +45,17 @@
 
     - name: Install Containerd and K8s dependencies
       apt:
-        name: [apt-transport-https, ca-certificates, curl, gpg, containerd, nfs-common, open-iscsi, conntrack, socat, ebtables]
+        name: 
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+          - containerd
+          - nfs-common
+          - open-iscsi
+          - conntrack
+          - socat
+          - ebtables
         update_cache: yes
         state: present
 

@@ -1,0 +1,56 @@
+---
+- name: Configure Containerd Pull-Through Caches
+  hosts: k8s_master, k8s_workers
+  become: true
+  tasks:
+    - name: Enable hosts.toml support in containerd
+      shell: |
+        sed -i 's|config_path = ""|config_path = "/etc/containerd/certs.d"|g' /etc/containerd/config.toml
+
+    - name: Create certs.d directories
+      file:
+        path: "/etc/containerd/certs.d/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - public.ecr.aws
+        - docker.io
+        - quay.io
+        - registry.k8s.io
+
+    - name: Configure ECR mirror
+      copy:
+        dest: /etc/containerd/certs.d/public.ecr.aws/hosts.toml
+        content: |
+          server = "https://public.ecr.aws"
+          [host."http://gitlab-srv.lan:5001"]
+            capabilities = ["pull", "resolve"]
+
+    - name: Configure Docker Hub mirror
+      copy:
+        dest: /etc/containerd/certs.d/docker.io/hosts.toml
+        content: |
+          server = "https://registry-1.docker.io"
+          [host."http://gitlab-srv.lan:5002"]
+            capabilities = ["pull", "resolve"]
+
+    - name: Configure Quay mirror
+      copy:
+        dest: /etc/containerd/certs.d/quay.io/hosts.toml
+        content: |
+          server = "https://quay.io"
+          [host."http://gitlab-srv.lan:5003"]
+            capabilities = ["pull", "resolve"]
+
+    - name: Configure K8s Registry mirror
+      copy:
+        dest: /etc/containerd/certs.d/registry.k8s.io/hosts.toml
+        content: |
+          server = "https://registry.k8s.io"
+          [host."http://gitlab-srv.lan:5004"]
+            capabilities = ["pull", "resolve"]
+
+    - name: Restart containerd to apply changes
+      systemd:
+        name: containerd
+        state: restarted

@@ -1,5 +1,5 @@
 ---
-- name: Install Docker for GitLab
+- name: Install Docker for GitLab and Registry Caches
   hosts: gitlab
   become: true
   tasks:
@@ -15,7 +15,7 @@
         state: started
         enabled: yes
 
-    - name: Создаем папки для данных GitLab
+    - name: Создаем папки для данных GitLab и кэшей
       file:
         path: "{{ item }}"
         state: directory
@@ -24,8 +24,12 @@
         - /srv/gitlab/config
         - /srv/gitlab/logs
         - /srv/gitlab/data
+        - /srv/registry-ecr
+        - /srv/registry-docker
+        - /srv/registry-quay
+        - /srv/registry-k8s
 
-    - name: Создаем docker-compose.yml для GitLab
+    - name: Создаем docker-compose.yml для GitLab и зеркал
       copy:
         dest: /srv/gitlab/docker-compose.yml
         content: |
@@ -47,7 +51,47 @@
                 - '/srv/gitlab/data:/var/opt/gitlab'
               shm_size: '256m'
 
-    - name: Поднимаем GitLab (Это займет время!)
+            mirror-ecr:
+              image: registry:2
+              restart: always
+              ports:
+                - '5001:5000'
+              environment:
+                REGISTRY_PROXY_REMOTEURL: 'https://public.ecr.aws'
+              volumes:
+                - '/srv/registry-ecr:/var/lib/registry'
+
+            mirror-docker:
+              image: registry:2
+              restart: always
+              ports:
+                - '5002:5000'
+              environment:
+                REGISTRY_PROXY_REMOTEURL: 'https://registry-1.docker.io'
+              volumes:
+                - '/srv/registry-docker:/var/lib/registry'
+
+            mirror-quay:
+              image: registry:2
+              restart: always
+              ports:
+                - '5003:5000'
+              environment:
+                REGISTRY_PROXY_REMOTEURL: 'https://quay.io'
+              volumes:
+                - '/srv/registry-quay:/var/lib/registry'
+
+            mirror-k8s:
+              image: registry:2
+              restart: always
+              ports:
+                - '5004:5000'
+              environment:
+                REGISTRY_PROXY_REMOTEURL: 'https://registry.k8s.io'
+              volumes:
+                - '/srv/registry-k8s:/var/lib/registry'
+
+    - name: Поднимаем GitLab и кэши
       shell: docker compose up -d
       args:
         chdir: /srv/gitlab

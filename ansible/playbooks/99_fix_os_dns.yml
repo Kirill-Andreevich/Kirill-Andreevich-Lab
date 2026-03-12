@@ -1,0 +1,20 @@
+---
+- name: Fix OS DNS to strictly use local router
+  hosts: all
+  become: true
+  tasks:
+    - name: Remove 8.8.8.8 from netplan config
+      replace:
+        path: /etc/netplan/50-cloud-init.yaml
+        regexp: '\[192\.168\.1\.1,\s*8\.8\.8\.8\]'
+        replace: '[192.168.1.1]'
+      ignore_errors: true
+
+    - name: Apply netplan changes
+      shell: netplan apply
+      ignore_errors: true
+
+    - name: Restart systemd-resolved to flush cache
+      systemd:
+        name: systemd-resolved
+        state: restarted

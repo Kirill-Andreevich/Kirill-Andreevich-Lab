@@ -74,7 +74,7 @@ ethernets:
       - to: default
         via: 192.168.1.1
     nameservers:
-      addresses: [192.168.1.1, 8.8.8.8]
+      addresses: [192.168.1.1]
 EOT
 }
 
@@ -127,7 +127,7 @@ ethernets:
       - to: default
         via: 192.168.1.1
     nameservers:
-      addresses: [192.168.1.1, 8.8.8.8]
+      addresses: [192.168.1.1]
 EOT
 }
 
@@ -180,7 +180,7 @@ ethernets:
       - to: default
         via: 192.168.1.1
     nameservers:
-      addresses: [192.168.1.1, 8.8.8.8]
+      addresses: [192.168.1.1]
 EOT
 }
 
