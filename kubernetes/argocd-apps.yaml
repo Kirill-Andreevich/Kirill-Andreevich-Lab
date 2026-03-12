@@ -3,13 +3,11 @@ kind: Application
 metadata:
   name: homelab-apps
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/Kirill-Andreevich/Kirill-Andreevich-Lab.git'
-    targetRevision: HEAD
+    repoURL: 'http://gitlab-srv.lan/root/homelab.git'
+    targetRevision: main
     path: kubernetes/apps
   destination:
     server: 'https://kubernetes.default.svc'
