@@ -8,19 +8,8 @@ deploy_infrastructure:
   tags:
     - shell
   before_script:
-    - echo ">>> Настройка гибридных зеркал Terraform (Yandex + direct)..."
-    - |
-      cat <<EOF > ~/.terraformrc
-      provider_installation {
-        network_mirror {
-          url = "https://terraform-mirror.yandex.ru/"
-          include = ["registry.terraform.io/*/*"]
-        }
-        direct {
-          exclude = ["registry.terraform.io/*/*"]
-        }
-      }
-      EOF
+    - echo ">>> Подкладываем рабочий файл зеркал Terraform из репозитория..."
+    - cp terraform/.terraformrc ~/.terraformrc
   script:
     - echo ">>> Развертывание инфраструктуры KVM..."
     - cd terraform/infra-vms && terraform init && terraform apply -auto-approve
