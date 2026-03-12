@@ -19,8 +19,7 @@ deploy_infrastructure:
     - find terraform -name "providers.tf" -exec sed -i "s|/home/km/|$HOME/|g" {} +
   script:
     - echo ">>> Развертывание инфраструктуры KVM..."
-    - cd terraform/infra-vms && terraform init && terraform apply -auto-approve
-    - cd ../cluster-nodes && terraform init && terraform apply -auto-approve
+    - cd terraform/cluster-nodes && terraform init && terraform apply -auto-approve
 
 # 2. Установка Kubernetes (Аналог make k8s-base)
 configure_kubernetes:
