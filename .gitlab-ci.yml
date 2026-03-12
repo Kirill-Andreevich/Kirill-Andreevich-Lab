@@ -1,10 +1,9 @@
 stages:
-  - infrastructure
-  - configuration
+  - deploy
 
-# 1. Поднятие ВМ (Аналог make infra)
-deploy_infrastructure:
-  stage: infrastructure
+# Полное развертывание: Инфраструктура + Кубернетес
+deploy_homelab:
+  stage: deploy
   tags:
     - shell
   before_script:
@@ -17,21 +16,18 @@ deploy_infrastructure:
     - ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
     - echo ">>> Адаптируем пути к ключам под CI-окружение..."
     - find terraform -name "providers.tf" -exec sed -i "s|/home/km/|$HOME/|g" {} +
-  script:
-    - echo ">>> Развертывание инфраструктуры KVM..."
-    - cd terraform/cluster-nodes && terraform init && terraform apply -auto-approve
-
-# 2. Установка Kubernetes (Аналог make k8s-base)
-configure_kubernetes:
-  stage: configuration
-  tags:
-    - shell
-  before_script:
-    # Подгружаем SSH-ключ из секретов GitLab для Ansible
+    # Подготавливаем ключи для Ansible
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - export ANSIBLE_HOST_KEY_CHECKING=False
   script:
+    - echo ">>> Развертывание инфраструктуры KVM..."
+    - cd terraform/cluster-nodes
+    - terraform init
+    # МАГИЯ: Сохраняем стейт в надежную зону (вне Git), чтобы он пережил будущие сборки!
+    - terraform apply -state=$HOME/cluster.tfstate -auto-approve
+    - cd ../..
+    
     - echo ">>> Установка Kubernetes и сетевой фабрики..."
     - sleep 30
     - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_prepare.yml
@@ -39,7 +35,8 @@ configure_kubernetes:
     - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_init_master.yml
     - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_join_workers.yml
     - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_containerd_mirrors.yml
-    # Настройка сети и балансировщика
+    
+    - echo ">>> Настройка сети и балансировщика..."
     - export KUBECONFIG=$HOME/.kube/config
     - kubectl wait --for=condition=Ready nodes --all --timeout=120s
     - kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
