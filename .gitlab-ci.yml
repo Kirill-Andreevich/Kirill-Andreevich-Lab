@@ -20,8 +20,6 @@ default:
 
 # ==========================================
 # ЭТАП 1: Инфраструктура (Terraform)
-# ВАЖНО: CI/CD управляет ТОЛЬКО K8s-нодами (Tier-1).
-# GitLab (Tier-0) разворачивается локально!
 # ==========================================
 deploy_infra:
   stage: infrastructure
@@ -30,6 +28,11 @@ deploy_infra:
     - cd terraform/cluster-nodes
     - terraform init
     - terraform apply -state=$HOME/k8s-cluster.tfstate -auto-approve
+  # СОХРАНЯЕМ ИНВЕНТАРЬ ДЛЯ СЛЕДУЮЩИХ ЭТАПОВ
+  artifacts:
+    paths:
+      - ansible/inventory/generated_hosts.ini
+    expire_in: 1 hour
 
 # ==========================================
 # ЭТАП 2: Кубернетес (Ansible + Healthchecks)
