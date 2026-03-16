@@ -66,9 +66,18 @@ deploy_k8s:
 deploy_platform:
   stage: platform
   script:
-    - echo ">>> Установка плагина helm-secrets для расшифровки SOPS..."
-    - helm plugin install https://github.com/jkroepke/helm-secrets --verify=false || true
-    
+    - echo ">>> Установка зависимостей (SOPS) для расшифровки секретов..."
+    - mkdir -p $HOME/.local/bin
+    - export PATH=$PATH:$HOME/.local/bin
+    - curl -fsSL -o $HOME/.local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+    - chmod +x $HOME/.local/bin/sops
+
+    - echo ">>> Жесткая фиксация директорий Helm и переустановка плагина..."
+    - export HELM_DATA_HOME=$HOME/.local/share/helm
+    - export HELM_PLUGINS=$HELM_DATA_HOME/plugins
+    - helm plugin uninstall secrets || true
+    - helm plugin install https://github.com/jkroepke/helm-secrets --verify=false
+
     - echo ">>> Развертывание Democratic CSI (TrueNAS iSCSI)..."
     - helm secrets upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml
     
