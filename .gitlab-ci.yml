@@ -96,13 +96,14 @@ deploy_platform:
 deploy_gitops:
   stage: gitops
   script:
-    - echo ">>> Установка ArgoCD (Локальный манифест)..."
+    - export KUBECONFIG=$HOME/.kube/config
+    - echo ">>> Создание неймспейса и установка ArgoCD..."
     - kubectl create namespace argocd || true
-    - kubectl apply -n argocd -f kubernetes/core/argocd-install.yaml --server-side --force-conflicts
-    - echo ">>> Фикс - замена образа Redis..."
+    - kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
+    - echo ">>> Фикс: замена капризного образа Redis с ECR на Docker Hub..."
     - kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd
     - echo ">>> Ожидание запуска подов ArgoCD..."
-    - kubectl wait --for=condition=Ready pods --all -n argocd --timeout=300s
-    - echo ">>> Передача управления кластеру в ArgoCD..."
+    # Тот самый увеличенный таймаут на 900s
+    - kubectl wait --for=condition=Ready pods --all -n argocd --timeout=900s
+    - echo ">>> Передача управления кластеру в ArgoCD (GitOps)..."
     - kubectl apply -f kubernetes/argocd-apps.yaml
-  needs: ["deploy_platform"]
