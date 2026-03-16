@@ -61,31 +61,29 @@ deploy_k8s:
   needs: ["deploy_infra"]
 
 # ==========================================
-# ЭТАП 3: Хранилище и Мониторинг (Raw Helm)
+# ЭТАП 3: Хранилище и Мониторинг (Pure Helm + Native SOPS)
 # ==========================================
 deploy_platform:
   stage: platform
   script:
-    - echo ">>> Установка зависимостей (SOPS) для расшифровки секретов..."
+    - echo ">>> Установка бинарника SOPS для прямой расшифровки секретов..."
     - mkdir -p $HOME/.local/bin
     - export PATH=$PATH:$HOME/.local/bin
     - curl -fsSL -o $HOME/.local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
     - chmod +x $HOME/.local/bin/sops
 
-    - echo ">>> Жесткая фиксация директорий Helm и переустановка плагина..."
-    - export HELM_DATA_HOME=$HOME/.local/share/helm
-    - export HELM_PLUGINS=$HELM_DATA_HOME/plugins
-    - helm plugin uninstall secrets || true
-    - helm plugin install https://github.com/jkroepke/helm-secrets --verify=false
+    - echo ">>> Расшифровка секретов (Native SOPS)..."
+    - sops -d kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml > truenas-secrets.yaml
+    - sops -d kubernetes/core/alertmanager-values-secrets.yaml > alertmanager-secrets.yaml
 
     - echo ">>> Развертывание Democratic CSI (TrueNAS iSCSI)..."
-    - helm secrets upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml
+    - helm upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f truenas-secrets.yaml
     
     - echo ">>> Установка стека мониторинга (Prometheus + Grafana)..."
     - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
     - helm repo add grafana https://grafana.github.io/helm-charts
     - helm repo update
-    - helm secrets upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f kubernetes/core/alertmanager-values-secrets.yaml -f kubernetes/core/grafana-dashboards.yaml --set grafana.service.type=LoadBalancer --set prometheus.service.type=LoadBalancer --set alertmanager.service.type=LoadBalancer --set kubeEtcd.enabled=false --set kubeControllerManager.enabled=false --set kubeScheduler.enabled=false --set kubeProxy.enabled=false
+    - helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f alertmanager-secrets.yaml -f kubernetes/core/grafana-dashboards.yaml --set grafana.service.type=LoadBalancer --set prometheus.service.type=LoadBalancer --set alertmanager.service.type=LoadBalancer --set kubeEtcd.enabled=false --set kubeControllerManager.enabled=false --set kubeScheduler.enabled=false --set kubeProxy.enabled=false
     
     - echo ">>> Установка стека логирования (Loki)..."
     - helm upgrade --install loki grafana/loki-stack --namespace monitoring -f kubernetes/core/loki-values.yaml
@@ -95,6 +93,9 @@ deploy_platform:
     - kubectl apply -f kubernetes/core/baremetal-monitors.yaml
     - kubectl apply -f kubernetes/core/hedgehog-rules.yaml
     - kubectl apply -f kubernetes/core/network-alerts.yaml
+    
+    - echo ">>> Очистка расшифрованных секретов из памяти Runner..."
+    - rm -f truenas-secrets.yaml alertmanager-secrets.yaml
   needs: ["deploy_k8s"]
 
 # ==========================================
