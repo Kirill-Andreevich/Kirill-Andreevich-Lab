@@ -61,32 +61,24 @@ deploy_k8s:
   needs: ["deploy_infra"]
 
 # ==========================================
-# ЭТАП 3: Хранилище и Мониторинг (Pure Helm + Native SOPS)
+# ЭТАП 3: Хранилище и Мониторинг (100% Локально)
 # ==========================================
 deploy_platform:
   stage: platform
   script:
-    - echo ">>> Установка бинарника SOPS для прямой расшифровки секретов..."
-    - mkdir -p $HOME/.local/bin
-    - export PATH=$PATH:$HOME/.local/bin
-    - curl -fsSL -o $HOME/.local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-    - chmod +x $HOME/.local/bin/sops
+    - echo ">>> Расшифровка секретов (Локальный SOPS)..."
+    - chmod +x bin/sops
+    - ./bin/sops -d kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml > truenas-secrets.yaml
+    - ./bin/sops -d kubernetes/core/alertmanager-values-secrets.yaml > alertmanager-secrets.yaml
 
-    - echo ">>> Расшифровка секретов (Native SOPS)..."
-    - sops -d kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml > truenas-secrets.yaml
-    - sops -d kubernetes/core/alertmanager-values-secrets.yaml > alertmanager-secrets.yaml
-
-    - echo ">>> Развертывание Democratic CSI (TrueNAS iSCSI)..."
+    - echo ">>> Развертывание Democratic CSI (Локальный чарт)..."
     - helm upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f truenas-secrets.yaml
     
-    - echo ">>> Установка стека мониторинга (Prometheus + Grafana)..."
-    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    - helm repo add grafana https://grafana.github.io/helm-charts
-    - helm repo update
-    - helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f alertmanager-secrets.yaml -f kubernetes/core/grafana-dashboards.yaml --set grafana.service.type=LoadBalancer --set prometheus.service.type=LoadBalancer --set alertmanager.service.type=LoadBalancer --set kubeEtcd.enabled=false --set kubeControllerManager.enabled=false --set kubeScheduler.enabled=false --set kubeProxy.enabled=false
+    - echo ">>> Установка стека мониторинга (Локальный .tgz архив)..."
+    - helm upgrade --install kube-prometheus-stack kubernetes/charts/kube-prometheus-stack-*.tgz --namespace monitoring --create-namespace -f alertmanager-secrets.yaml -f kubernetes/core/grafana-dashboards.yaml --set grafana.service.type=LoadBalancer --set prometheus.service.type=LoadBalancer --set alertmanager.service.type=LoadBalancer --set kubeEtcd.enabled=false --set kubeControllerManager.enabled=false --set kubeScheduler.enabled=false --set kubeProxy.enabled=false
     
-    - echo ">>> Установка стека логирования (Loki)..."
-    - helm upgrade --install loki grafana/loki-stack --namespace monitoring -f kubernetes/core/loki-values.yaml
+    - echo ">>> Установка стека логирования (Локальный .tgz архив)..."
+    - helm upgrade --install loki kubernetes/charts/loki-stack-*.tgz --namespace monitoring -f kubernetes/core/loki-values.yaml
     
     - echo ">>> Применение кастомных правил и дашбордов..."
     - kubectl apply -f kubernetes/core/loki-datasource.yaml
@@ -99,14 +91,14 @@ deploy_platform:
   needs: ["deploy_k8s"]
 
 # ==========================================
-# ЭТАП 4: ArgoCD (GitOps)
+# ЭТАП 4: ArgoCD (100% Локально)
 # ==========================================
 deploy_gitops:
   stage: gitops
   script:
-    - echo ">>> Установка ArgoCD..."
+    - echo ">>> Установка ArgoCD (Локальный манифест)..."
     - kubectl create namespace argocd || true
-    - kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
+    - kubectl apply -n argocd -f kubernetes/core/argocd-install.yaml --server-side --force-conflicts
     - echo ">>> Фикс - замена образа Redis..."
     - kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd
     - echo ">>> Ожидание запуска подов ArgoCD..."
