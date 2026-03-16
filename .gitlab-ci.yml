@@ -4,10 +4,6 @@ stages:
   - platform
   - gitops
 
-# Глобальные переменные, доступные на всех этапах
-variables:
-  KUBECONFIG: $HOME/.kube/config
-
 # Настройки для всех джобов
 default:
   tags:
@@ -21,6 +17,7 @@ default:
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/id_ed25519
     - export ANSIBLE_HOST_KEY_CHECKING=False
+    - export KUBECONFIG=~/.kube/config
 
 # ==========================================
 # ЭТАП 1: Инфраструктура (Raw Terraform)
