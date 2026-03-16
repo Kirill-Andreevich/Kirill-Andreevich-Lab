@@ -3,16 +3,16 @@
   hosts: k8s_workers
   become: true
   vars:
-    truenas_ip: "truenas-core.lan"
+    truenas_host: "truenas-core.lan"
 
   tasks:
     - name: Discovery targets
       # Берем только уникальные IQN из вывода discovery
-      shell: "iscsiadm -m discovery -t sendtargets -p {{ truenas_ip }} | awk '{print $2}' | sort -u"
+      shell: "iscsiadm -m discovery -t sendtargets -p {{ truenas_host }} | awk '{print $2}' | sort -u"
       register: discovered_iqn
 
     - name: Login to targets
-      shell: "iscsiadm -m node -T {{ item }} -p {{ truenas_ip }} --login"
+      shell: "iscsiadm -m node -T {{ item }} -p {{ truenas_host }} --login"
       loop: "{{ discovered_iqn.stdout_lines }}"
       register: login_res
       failed_when: "login_res.rc != 0 and 'already logged in' not in login_res.stderr"
