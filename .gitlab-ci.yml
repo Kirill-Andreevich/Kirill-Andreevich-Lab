@@ -103,7 +103,6 @@ deploy_gitops:
     - echo ">>> Фикс: замена капризного образа Redis с ECR на Docker Hub..."
     - kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd
     - echo ">>> Ожидание запуска подов ArgoCD..."
-    # Тот самый увеличенный таймаут на 900s
     - kubectl wait --for=condition=Ready pods --all -n argocd --timeout=900s
     - echo ">>> Передача управления кластеру в ArgoCD (GitOps)..."
     - kubectl apply -f kubernetes/argocd-apps.yaml
