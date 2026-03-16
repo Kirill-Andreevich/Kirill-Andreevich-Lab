@@ -28,6 +28,7 @@
         - /srv/registry-docker
         - /srv/registry-quay
         - /srv/registry-k8s
+        - /srv/registry-ghcr
 
     - name: Создаем docker-compose.yml для GitLab и зеркал
       copy:
@@ -91,6 +92,16 @@
               volumes:
                 - '/srv/registry-k8s:/var/lib/registry'
 
+            registry-ghcr:
+              image: registry:2
+              restart: always
+              ports:
+                - "5005:5000"
+              environment:
+                REGISTRY_PROXY_REMOTEURL: "https://ghcr.io"
+              volumes:
+                - '/srv/registry-ghcr:/var/lib/registry'
+	    	
     - name: Поднимаем GitLab и кэши
       shell: docker compose up -d
       args:

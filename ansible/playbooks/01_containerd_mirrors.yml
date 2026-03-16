@@ -17,6 +17,7 @@
         - docker.io
         - quay.io
         - registry.k8s.io
+        - ghcr.io
 
     - name: Configure ECR mirror
       copy:
@@ -48,6 +49,14 @@
         content: |
           server = "https://registry.k8s.io"
           [host."http://gitlab-srv.lan:5004"]
+            capabilities = ["pull", "resolve"]
+
+    - name: Configure GHCR mirror
+      copy:
+        dest: /etc/containerd/certs.d/ghcr.io/hosts.toml
+        content: |
+          server = "https://ghcr.io"
+          [host."http://gitlab-srv.lan:5005"]
             capabilities = ["pull", "resolve"]
 
     - name: Restart containerd to apply changes
