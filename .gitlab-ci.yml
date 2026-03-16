@@ -4,13 +4,17 @@ stages:
   - platform
   - gitops
 
-# Глобальные настройки (выполняются перед каждым джобом)
+# Глобальные переменные, доступные на всех этапах
+variables:
+  KUBECONFIG: $HOME/.kube/config
+
+# Настройки для всех джобов
 default:
   tags:
     - shell
   before_script:
     - echo ">>> Подготовка рабочего окружения..."
-    - cp terraform/.terraformrc ~/.terraformrc
+    - cp terraform/.terraformrc ~/.terraformrc || true
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
@@ -19,7 +23,7 @@ default:
     - export ANSIBLE_HOST_KEY_CHECKING=False
 
 # ==========================================
-# ЭТАП 1: Инфраструктура (Terraform)
+# ЭТАП 1: Инфраструктура (Raw Terraform)
 # ==========================================
 deploy_infra:
   stage: infrastructure
@@ -28,42 +32,75 @@ deploy_infra:
     - cd terraform/cluster-nodes
     - terraform init
     - terraform apply -state=$HOME/k8s-cluster.tfstate -auto-approve
-  # СОХРАНЯЕМ ИНВЕНТАРЬ ДЛЯ СЛЕДУЮЩИХ ЭТАПОВ
+  # Сохраняем сгенерированный инвентарь для Ansible
   artifacts:
     paths:
       - ansible/inventory/generated_hosts.ini
     expire_in: 1 hour
 
 # ==========================================
-# ЭТАП 2: Кубернетес (Ansible + Healthchecks)
-# Запустится ТОЛЬКО если deploy_infra успешен
+# ЭТАП 2: Кубернетес (Raw Ansible + kubectl)
 # ==========================================
 deploy_k8s:
   stage: kubernetes
   script:
-    - echo ">>> Установка Kubernetes (Ansible + Flannel + MetalLB)..."
-    - make k8s-base
+    - echo ">>> Настройка ОС и Bootstrap Kubernetes..."
+    - sleep 30
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_prepare.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_install_k8s.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_init_master.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/02_join_workers.yml
+    - ansible-playbook -i ansible/inventory/generated_hosts.ini ansible/playbooks/01_containerd_mirrors.yml
+    
+    - echo ">>> Ожидание готовности кластера..."
+    - kubectl wait --for=condition=Ready nodes --all --timeout=120s
+    
+    - echo ">>> Настройка MetalLB (защита от Race Condition)..."
+    - kubectl apply -f kubernetes/core/metallb-native.yaml
+    - kubectl wait --namespace metallb-system --for=condition=ready pod -l component=controller --timeout=300s
+    - kubectl wait --namespace metallb-system --for=condition=ready pod -l component=speaker --timeout=300s
+    - sleep 15
+    - kubectl apply -f kubernetes/core/metallb-config.yaml
   needs: ["deploy_infra"]
 
 # ==========================================
-# ЭТАП 3: Хранилище (TrueNAS) и Мониторинг (Helm)
-# Запустится ТОЛЬКО если kubectl wait на ноды прошел успешно
+# ЭТАП 3: Хранилище и Мониторинг (Raw Helm)
 # ==========================================
 deploy_platform:
   stage: platform
   script:
-    - echo ">>> Настройка TrueNAS CSI и стека Prometheus/Loki..."
-    - make storage
-    - make monitoring
+    - echo ">>> Развертывание Democratic CSI (TrueNAS iSCSI)..."
+    - helm secrets upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml
+    
+    - echo ">>> Установка стека мониторинга (Prometheus + Grafana)..."
+    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - helm repo add grafana https://grafana.github.io/helm-charts
+    - helm repo update
+    - helm secrets upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f kubernetes/core/alertmanager-values-secrets.yaml -f kubernetes/core/grafana-dashboards.yaml --set grafana.service.type=LoadBalancer --set prometheus.service.type=LoadBalancer --set alertmanager.service.type=LoadBalancer --set kubeEtcd.enabled=false --set kubeControllerManager.enabled=false --set kubeScheduler.enabled=false --set kubeProxy.enabled=false
+    
+    - echo ">>> Установка стека логирования (Loki)..."
+    - helm upgrade --install loki grafana/loki-stack --namespace monitoring -f kubernetes/core/loki-values.yaml
+    
+    - echo ">>> Применение кастомных правил и дашбордов..."
+    - kubectl apply -f kubernetes/core/loki-datasource.yaml
+    - kubectl apply -f kubernetes/core/baremetal-monitors.yaml
+    - kubectl apply -f kubernetes/core/hedgehog-rules.yaml
+    - kubectl apply -f kubernetes/core/network-alerts.yaml
   needs: ["deploy_k8s"]
 
 # ==========================================
 # ЭТАП 4: ArgoCD (GitOps)
-# Запустится ТОЛЬКО если storage и monitoring развернуты
 # ==========================================
 deploy_gitops:
   stage: gitops
   script:
-    - echo ">>> Установка ArgoCD и передача управления..."
-    - make argocd
+    - echo ">>> Установка ArgoCD..."
+    - kubectl create namespace argocd || true
+    - kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts
+    - echo ">>> Фикс: замена образа Redis..."
+    - kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd
+    - echo ">>> Ожидание запуска подов ArgoCD..."
+    - kubectl wait --for=condition=Ready pods --all -n argocd --timeout=300s
+    - echo ">>> Передача управления кластеру в ArgoCD..."
+    - kubectl apply -f kubernetes/argocd-apps.yaml
   needs: ["deploy_platform"]
