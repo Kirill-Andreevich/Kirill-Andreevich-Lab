@@ -67,7 +67,7 @@ deploy_platform:
   stage: platform
   script:
     - echo ">>> Установка плагина helm-secrets для расшифровки SOPS..."
-    - helm plugin install https://github.com/jkroepke/helm-secrets || true
+    - helm plugin install https://github.com/jkroepke/helm-secrets --verify=false || true
     
     - echo ">>> Развертывание Democratic CSI (TrueNAS iSCSI)..."
     - helm secrets upgrade --install truenas-iscsi kubernetes/core/democratic-csi --namespace democratic-csi --create-namespace -f kubernetes/core/truenas-csi/zfs-iscsi-base.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-prod.yaml -f kubernetes/core/truenas-csi/zfs-iscsi-secrets.yaml
