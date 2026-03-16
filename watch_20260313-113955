@@ -1,0 +1,57 @@
+NAMESPACE        NAME                                                            READY   STATUS    RESTARTS      AGE                                                                      
+argocd           pod/argocd-application-controller-0                             1/1     Running   1 (36m ago)   12h                                                                      
+argocd           pod/argocd-applicationset-controller-c659c9d74-jmcf8            1/1     Running   1 (36m ago)   12h                                                                      
+argocd           pod/argocd-dex-server-b86946f6f-4dd89                           1/1     Running   1 (36m ago)   12h                                                                      
+argocd           pod/argocd-notifications-controller-5594c95d5c-7sdzx            1/1     Running   1 (36m ago)   12h                                                                      
+argocd           pod/argocd-redis-6c6ff7b7b6-b6qj2                               1/1     Running   1 (36m ago)   12h                                                                      
+argocd           pod/argocd-repo-server-68db5647f4-hmbdm                         1/1     Running   0             32m                                                                      
+argocd           pod/argocd-server-7bcc547f58-lzjdl                              1/1     Running   1 (36m ago)   12h                                                                      
+default          pod/jellyfin-859b8898bf-qp7hx                                   1/1     Running   0             21m                                                                      
+default          pod/nextcloud-56d4bdf5c8-mb4sr                                  1/1     Running   0             21m                                                                      
+default          pod/speedtest-5bf88c49d-96k2j                                   1/1     Running   0             21m                                                                      
+democratic-csi   pod/truenas-iscsi-democratic-csi-controller-6df547f598-x52s6    6/6     Running   6 (36m ago)   12h                                                                      
+democratic-csi   pod/truenas-iscsi-democratic-csi-node-c89r5                     4/4     Running   5 (35m ago)   12h                                                                      
+democratic-csi   pod/truenas-iscsi-democratic-csi-node-dd69h                     4/4     Running   5 (35m ago)   12h                                                                      
+democratic-csi   pod/truenas-iscsi-democratic-csi-node-vmf9v                     4/4     Running   5 (35m ago)   12h                                                                      
+kube-flannel     pod/kube-flannel-ds-6gbrb                                       1/1     Running   1 (36m ago)   13h                                                                      
+kube-flannel     pod/kube-flannel-ds-dxjbn                                       1/1     Running   1 (36m ago)   13h                                                                      
+kube-flannel     pod/kube-flannel-ds-ggg44                                       1/1     Running   1 (36m ago)   13h                                                                      
+kube-flannel     pod/kube-flannel-ds-qgkhf                                       1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/coredns-7c65d6cfc9-549vg                                    1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/coredns-7c65d6cfc9-6zj6w                                    1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/etcd-k8s-master                                             1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-apiserver-k8s-master                                   1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-controller-manager-k8s-master                          1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-proxy-4vzrt                                            1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-proxy-8q8zj                                            1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-proxy-8zbg8                                            1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-proxy-dhw5b                                            1/1     Running   1 (36m ago)   13h                                                                      
+kube-system      pod/kube-scheduler-k8s-master                                   1/1     Running   1 (36m ago)   13h                                                                      
+metallb-system   pod/controller-5b766bf98c-tr4cp                                 1/1     Running   1 (36m ago)   12h                                                                      
+metallb-system   pod/speaker-dlrfk                                               1/1     Running   2 (34m ago)   12h                                                                      
+metallb-system   pod/speaker-kb7g8                                               1/1     Running   2 (34m ago)   12h                                                                      
+metallb-system   pod/speaker-mqnf6                                               1/1     Running   2 (35m ago)   12h                                                                      
+metallb-system   pod/speaker-rhjjc                                               1/1     Running   2 (35m ago)   12h                                                                      
+monitoring       pod/alertmanager-kube-prometheus-stack-alertmanager-0           2/2     Running   2 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-grafana-685fd8b5b-nfb2s               3/3     Running   5 (35m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-kube-state-metrics-58f95c47d6-66j4k   1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-operator-8597d487dd-zq4v5             1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-prometheus-node-exporter-2xdzw        1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-prometheus-node-exporter-kmmfh        1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-prometheus-node-exporter-xts2g        1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/kube-prometheus-stack-prometheus-node-exporter-zzrbv        1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/loki-0                                                      1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/loki-promtail-9fzv4                                         1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/loki-promtail-kwq7t                                         1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/loki-promtail-th5wd                                         1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/loki-promtail-ztf5d                                         1/1     Running   1 (36m ago)   12h                                                                      
+monitoring       pod/prometheus-kube-prometheus-stack-prometheus-0               2/2     Running   2 (36m ago)   12h                                                                      
+                                                                                                                                                                                          
+NAMESPACE    NAME                                        STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS    VOLUMEATTRIBUTESCLASS   AGE        
+default      persistentvolumeclaim/jellyfin-config-pvc   Bound    pvc-39e61538-c47e-4f65-ae65-3f2a4433384c   10Gi       RWO            truenas-iscsi   <unset>                 21m        
+default      persistentvolumeclaim/nextcloud-data-pvc    Bound    pvc-33ca2ed1-7d46-4103-975d-88887d929110   10Gi       RWO            truenas-iscsi   <unset>                 21m        
+monitoring   persistentvolumeclaim/storage-loki-0        Bound    pvc-4a797b40-d73b-47c3-be43-56e11743585b   10Gi       RWO            truenas-iscsi   <unset>                 12h        
+                                                                                                                                                                                          
+                                                                                                                                                                                          
+                                                                                                                                                                                          
+                                                                                                                                                                                          

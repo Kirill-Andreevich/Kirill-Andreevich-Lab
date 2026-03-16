@@ -65,7 +65,6 @@ resource "libvirt_domain" "gitlab_srv" {
   cpu { mode = "host-passthrough" }
   network_interface { 
     bridge = "br0"
-    mac    = "52:54:00:11:22:33"
   }
   disk { volume_id = libvirt_volume.gitlab_disk.id }
 
