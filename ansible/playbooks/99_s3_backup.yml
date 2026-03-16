@@ -5,16 +5,11 @@
   gather_facts: yes
 
   vars:
-    # Доступы к TrueNAS MinIO
     s3_host: "http://192.168.1.30:9000"
     s3_bucket: "homelab-backups"
     aws_access_key: "homelab-backup-key"
-    aws_secret_key: "SecretBackupPass123"
-    
-    # Пароль для шифрования самого бэкапа (ОБЯЗАТЕЛЬНО СОХРАНИ!)
-    restic_password: "MySuperSecureResticKey!"
-    
-    # Что бэкапим (корень проекта)
+    aws_secret_key: "{{ lookup('env', 'S3_SECRET_KEY') }}"
+    restic_password: "{{ lookup('env', 'RESTIC_PASSWORD') }}"
     backup_source: "/home/km/homelab"
 
   tasks:
