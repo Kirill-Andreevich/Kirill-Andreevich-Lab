@@ -99,7 +99,7 @@ deploy_gitops:
     - echo ">>> Создание неймспейса и установка ArgoCD..."
     - kubectl create namespace argocd || true
     - echo ">>> Применяем манифесты с заменой образа Redis на лету..."
-    - curl -sSL https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml | sed 's/image:.*redis:.*/image: redis:7-alpine/g' | kubectl apply -n argocd -f -
+    - "curl -sSL https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml | sed 's/image:.*redis:.*/image: redis:7-alpine/g' | kubectl apply -n argocd -f -"
     - echo ">>> Ждем регистрации CRD..."
     - kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io crd/applicationsets.argoproj.io crd/appprojects.argoproj.io
     - echo ">>> Передача управления кластеру в ArgoCD (GitOps)..."
