@@ -100,8 +100,6 @@ deploy_gitops:
     - 'echo ">>> Создание неймспейса и установка ArgoCD..."'
     - 'kubectl create namespace argocd || true'
     - 'kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml --server-side --force-conflicts'
-    - 'echo ">>> Фикс: замена капризного образа Redis с ECR на Docker Hub..."'
-    - 'kubectl set image deployment/argocd-redis redis=redis:7-alpine -n argocd'
     - 'echo ">>> Ожидание запуска подов ArgoCD..."'
     - 'kubectl wait --for=condition=Ready pods --all -n argocd --timeout=900s'
     - 'echo ">>> Передача управления кластеру в ArgoCD (GitOps)..."'
