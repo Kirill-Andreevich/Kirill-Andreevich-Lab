@@ -1,0 +1,112 @@
+# --- СЕКРЕТЫ ДЛЯ АККАУНТОВ ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hh-bot-secret-account-1
+  namespace: default
+type: Opaque
+stringData:
+  HH_LOGIN: "account1@email.com"
+  HH_PASSWORD: "password1"
+  OPENAI_API_KEY: "sk-token-1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hh-bot-secret-account-2
+  namespace: default
+type: Opaque
+stringData:
+  HH_LOGIN: "account2@email.com"
+  HH_PASSWORD: "password2"
+  OPENAI_API_KEY: "sk-token-2"
+
+# --- ISCSI ДИСКИ ДЛЯ ХРАНЕНИЯ СОСТОЯНИЯ (STATE.JSON) ---
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hh-bot-data-account-1
+  namespace: default
+spec:
+  storageClassName: truenas-iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hh-bot-data-account-2
+  namespace: default
+spec:
+  storageClassName: truenas-iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+# --- DEPLOYMENTS (САМИ БОТЫ) ---
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hh-bot-account-1
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hh-bot-account-1
+  template:
+    metadata:
+      labels:
+        app: hh-bot-account-1
+    spec:
+      containers:
+      - name: bot
+        image: vanya23213445/hh-bot:v1 # <--- Ваш новый логин Docker Hub
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: hh-bot-secret-account-1
+        volumeMounts:
+        - name: bot-data
+          mountPath: /app/data
+      volumes:
+      - name: bot-data
+        persistentVolumeClaim:
+          claimName: hh-bot-data-account-1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hh-bot-account-2
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hh-bot-account-2
+  template:
+    metadata:
+      labels:
+        app: hh-bot-account-2
+    spec:
+      containers:
+      - name: bot
+        image: vanya23213445/hh-bot:v1 # <--- Ваш новый логин Docker Hub
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: hh-bot-secret-account-2
+        volumeMounts:
+        - name: bot-data
+          mountPath: /app/data
+      volumes:
+      - name: bot-data
+        persistentVolumeClaim:
+          claimName: hh-bot-data-account-2
